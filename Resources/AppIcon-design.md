@@ -19,3 +19,11 @@
 修改 SVG 后，运行 scripts/generate-app-icon.sh 重新导出。重新绘制 PNG 需要 librsvg 的 rsvg-convert；应用运行和正常打包不依赖它。
 
 Info.plist 的 CFBundleIconFile、Xcode Copy Bundle Resources 与命令行 build-app.sh 均引用 AppIcon.icns。已在运行中的应用可能需要下次启动才更新 Dock 图标。
+
+## 本地重复构建与图标刷新
+
+命令行打包会覆盖已有 .app 内的文件。只覆盖 Contents 下的文件不会更新应用包目录自身的修改时间；Finder/Dock 等使用应用包元数据的进程可能继续显示旧图标。
+
+build-app.sh 在完成签名验证后更新 .app 目录时间，并通过 lsregister -f 重新注册该应用，不重置其他应用的注册信息，也不会自动退出应用或重启 Dock。已验证重复构建前后目录时间递增，签名仍有效。
+
+2026-09-25 排查时，原始 ICNS、NSWorkspace 和 NSRunningApplication 在 16～512 像素均可渲染出图标，但用户反馈 Finder/Dock 仍不显示，因此这些 API 检查不能代替实际显示确认。本次另行刷新了 Finder 的构建目录并重启 Dock，保持原有应用进程运行；可见效果需以用户端显示为准。

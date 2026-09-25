@@ -28,5 +28,14 @@ cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$APP_DIR"
 lipo "$APP_DIR/Contents/MacOS/NsToolBox" -verify_arch arm64 x86_64
 codesign --verify --deep --strict "$APP_DIR"
+# In-place rebuilds otherwise leave the bundle directory's mtime unchanged.
+# Notify filesystem observers, then refresh only this app's Launch Services entry.
+touch "$APP_DIR"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [[ -x "$LSREGISTER" ]]; then
+    if ! "$LSREGISTER" -f "$APP_DIR"; then
+        print -u2 "Warning: app built successfully, but macOS application registration could not be refreshed."
+    fi
+fi
 print "Built $APP_DIR"
 lipo -info "$APP_DIR/Contents/MacOS/NsToolBox"
