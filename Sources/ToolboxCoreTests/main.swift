@@ -11,7 +11,11 @@ struct CoreTestRunner {
         try testBase64TextAndWhitespace()
         try testURLComponentSemantics()
         try testStructuredDiff()
-        print("ToolboxCoreTests: 7 passed")
+        try testNumericEquality()
+        try testDiffRangesAndSpecialPaths()
+        try testArrayAndRootDifferences()
+        try testHugeExponentsAndPreciseIntegers()
+        print("ToolboxCoreTests: 11 groups passed")
     }
 
     static func check(_ condition: Bool, _ message: String) {
@@ -75,5 +79,58 @@ struct CoreTestRunner {
         let changes = JSONDiff.compare(left, right)
         check(changes.map(\.path.description) == ["$.b[0]", "$.b[2]"], "diff paths")
         check(changes.map(\.kind) == [.modified, .added], "diff kinds")
+    }
+
+    static func testNumericEquality() throws {
+        let equalPairs = [("1", "1.0"), ("1e2", "100"), ("-0", "0"), ("1e-2", "0.01"), ("1e400", "10e399")]
+        for (lhs, rhs) in equalPairs {
+            let left = try JSONParser.parse(lhs).value
+            let right = try JSONParser.parse(rhs).value
+            check(left == right, "numeric equality \(lhs) == \(rhs)")
+        }
+        let high = try JSONParser.parse("1e400").value
+        let lower = try JSONParser.parse("1e399").value
+        check(high != lower, "numeric inequality")
+    }
+
+    static func testDiffRangesAndSpecialPaths() throws {
+        let leftText = #"{"emoji":"😀","a.b":[{"x":"旧"}]}"#
+        let rightText = #"{"emoji":"😀","a.b":[{"x":"新"}]}"#
+        let changes = JSONDiff.compare(try JSONParser.parse(leftText), try JSONParser.parse(rightText))
+        check(changes.count == 1, "one nested modification")
+        let change = changes[0]
+        check(change.path.description == #"$["a.b"][0].x"#, "escaped path components")
+        check((leftText as NSString).substring(with: change.leftRange!) == #""x":"旧""#, "UTF-16 left range after emoji")
+        check((rightText as NSString).substring(with: change.rightRange!) == #""x":"新""#, "UTF-16 right range after emoji")
+        check(change.leftRange!.location == (leftText as NSString).range(of: #""x":"旧""#).location, "exact range offset")
+    }
+
+    static func testArrayAndRootDifferences() throws {
+        let reordered = JSONDiff.compare(try JSONParser.parse("[1,2]"), try JSONParser.parse("[2,1]"))
+        check(reordered.map(\.path.description) == ["$[0]", "$[1]"], "arrays compare by index")
+        let removed = JSONDiff.compare(try JSONParser.parse("[1,2]"), try JSONParser.parse("[1]"))
+        check(removed.count == 1 && removed[0].kind == .removed && removed[0].rightRange == nil, "array removal")
+        let changedRoot = JSONDiff.compare(try JSONParser.parse("{}"), try JSONParser.parse("[]"))
+        check(changedRoot.count == 1 && changedRoot[0].path.description == "$", "root type changes")
+        let reorderedKeys = JSONDiff.compare(try JSONParser.parse(#"{"a":1,"b":null}"#), try JSONParser.parse(#"{"b":null,"a":1.0}"#))
+        check(reorderedKeys.isEmpty, "key order ignored")
+        let added = JSONDiff.compare(try JSONParser.parse("{}"), try JSONParser.parse(#"{"a":{}}"#))
+        check(added.count == 1 && added[0].kind == .added && added[0].leftRange == nil, "empty container addition")
+        let empty = JSONDiff.compare(try JSONParser.parse("[]"), try JSONParser.parse("[]"))
+        check(empty.isEmpty, "empty arrays")
+    }
+
+    static func testHugeExponentsAndPreciseIntegers() throws {
+        let pairs = [("100e-999999999999999999999", "1e-999999999999999999997"),
+                     ("0.1e999999999999999999999", "1e999999999999999999998"),
+                     ("100e-1", "10"), ("0.0001e4", "1"), ("-10.000", "-1e1")]
+        for (a, b) in pairs {
+            let lhs = try JSONParser.parse(a).value
+            let rhs = try JSONParser.parse(b).value
+            check(lhs == rhs, "exact exponent arithmetic")
+        }
+        let lhs = try JSONParser.parse("12345678901234567890123456789012345678901234567890").value
+        let rhs = try JSONParser.parse("12345678901234567890123456789012345678901234567891").value
+        check(lhs != rhs, "adjacent integers beyond Decimal precision")
     }
 }
