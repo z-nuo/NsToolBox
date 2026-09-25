@@ -5,10 +5,13 @@ let package = Package(
     name: "NsToolBox",
     platforms: [.macOS(.v13)],
     products: [.library(name: "ToolboxCore", targets: ["ToolboxCore"]),
+               .library(name: "ToolboxUI", targets: ["ToolboxUI"]),
                .executable(name: "NsToolBox", targets: ["NsToolBox"])],
     targets: [
         .target(name: "ToolboxCore"),
-        .executableTarget(name: "NsToolBox", dependencies: ["ToolboxCore"]),
+        .target(name: "ToolboxUI", dependencies: ["ToolboxCore"]),
+        .executableTarget(name: "NsToolBox", dependencies: ["ToolboxUI"]),
+        .executableTarget(name: "ToolboxUITests", dependencies: ["ToolboxUI", "ToolboxCore"]),
         .executableTarget(name: "ToolboxCoreTests", dependencies: ["ToolboxCore"])
     ]
 )
