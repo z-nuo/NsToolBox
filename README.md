@@ -1,2 +1,51 @@
 # NsToolBox
-Ns工具箱
+
+SwiftUI + AppKit 原生 macOS 开发者工具箱。最低 macOS 13，支持 Intel 和 Apple Silicon，所有数据均在本地处理。
+
+## 首版功能
+
+- **JSON**：实时格式化、压缩、校验，错误显示行列位置；左右双栏结构化对比、差异高亮、点击路径定位、格式化两侧。
+- **Base64**：UTF-8 文本与标准 Base64 编解码，支持带空白/换行的输入，拒绝非法填充及非 UTF-8 解码结果。
+- **URL**：文本/参数值的百分号编解码；编码仅保留字母、数字、连字符、句点、下划线和波浪线，完整 URL 中的分隔符也会编码；解码保留加号，不按表单规则转换为空格。
+- 输入与输出分别可复制；切换工具保留当前窗口的输入，清空时取消旧处理结果。关闭窗口后不保留输入。
+
+JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数字按精确数值比较（1 与 1.0 相等）。格式化保留数字原文，不通过 Double/Decimal 中转，避免大整数与指数精度损失。重复对象字段报错；嵌套深度最多 256 层；错误列号及编辑器定位使用 UTF-16。
+
+## 构建和运行
+
+需要 Swift 5.9+ 和匹配的 macOS SDK；可使用完整 Xcode 15+，或已安装对应 SDK 的 Command Line Tools。
+
+    swift run NsToolBox
+
+生成 Universal 2 应用：
+
+    ./scripts/build-app.sh
+    open build/NsToolBox.app
+
+脚本分别构建 arm64、x86_64 Release 二进制，验证架构后合并并做 ad-hoc 本地签名。默认输出 build/NsToolBox.app，可直接打开或复制到 Applications。
+
+若使用 Xcode，打开 NsToolBox.xcodeproj，选择 NsToolBox scheme。工程通过本地 Swift Package 复用核心与界面源文件，无外部依赖。Release 的 ONLY_ACTIVE_ARCH 为 NO，最低部署目标为 13.0。正式对外分发前需配置自己的 Bundle ID、开发者证书与公证；当前产物是本地开发版。
+
+## 测试
+
+为了让只有 Command Line Tools、没有 XCTest 的机器也能运行测试，测试以 SwiftPM 可执行目标提供：
+
+    swift run ToolboxCoreTests
+    swift run ToolboxUITests
+
+可选原生界面渲染检查（需要登录图形会话）：
+
+    swift run ToolboxUITests --render
+
+渲染结果位于 build/previews。测试覆盖 JSON 无损处理、非法输入、数字精度、UTF-16 源范围、结构化差异、编解码、状态恢复、防抖、编辑器语法色和文本撤销。它们不是 XCTest 目标，请使用以上命令运行。
+
+## 项目结构
+
+- Sources/NsToolBox：SwiftUI 应用入口。
+- Sources/ToolboxUI：工具导航、页面、状态模型、NSTextView 桥接与剪贴板。
+- Sources/ToolboxCore：独立的 Foundation JSON/编码服务。
+- Sources/ToolboxCoreTests、Sources/ToolboxUITests：可执行行为测试。
+- NsToolBox.xcodeproj、Resources、scripts：Xcode 工程、应用元数据与打包脚本。
+- docs/superpowers：已批准设计、实现计划和验证记录。
+
+首版不包含文件导入保存、JSON Schema、大文件流式处理、同步滚动、账号、云同步及插件系统。Intel/M 系列和 macOS 13 的完整实机矩阵仍需在对应设备上验收；构建架构与最低版本检查不能代替实机测试。
