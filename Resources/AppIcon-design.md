@@ -22,6 +22,8 @@ Info.plist 的 CFBundleIconFile、Xcode Copy Bundle Resources 与命令行 build
 
 ## 本地重复构建与图标刷新
 
+以下为历史排查说明；当前状态、后续证据与关闭条件统一维护在 [NST-001：Finder / Dock 不显示应用图标](../docs/development/TROUBLESHOOTING.md#nst-001)。
+
 命令行打包会覆盖已有 .app 内的文件。只覆盖 Contents 下的文件不会更新应用包目录自身的修改时间；Finder/Dock 等使用应用包元数据的进程可能继续显示旧图标。
 
 build-app.sh 在完成签名验证后更新 .app 目录时间，并通过 lsregister -f 重新注册该应用，不重置其他应用的注册信息，也不会自动退出应用或重启 Dock。已验证重复构建前后目录时间递增，签名仍有效。

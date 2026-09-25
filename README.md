@@ -39,6 +39,12 @@ JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数
 
 渲染结果位于 build/previews。测试覆盖 JSON 无损处理、非法输入、数字精度、UTF-16 源范围、结构化差异、编解码、状态恢复、防抖、编辑器语法色和文本撤销。它们不是 XCTest 目标，请使用以上命令运行。
 
+## 问题记录与排障
+
+遇到问题先查阅 [开发问题列表与修复指南](docs/development/TROUBLESHOOTING.md)，按编号、现象或错误信息查找复现步骤、定位证据、修复方法和验证结果。
+
+后续每次开发遇到新问题，都使用 [问题模板](docs/development/ISSUE_TEMPLATE.md) 在同一次任务交付前补全记录；同一问题复发更新原条目并保留历史。持续维护规则已写入 [AGENTS.md](AGENTS.md)。Finder / Dock 图标显示问题的当前进展见 [NST-001](docs/development/TROUBLESHOOTING.md#nst-001)。
+
 ## 项目结构
 
 - Sources/NsToolBox：SwiftUI 应用入口。
@@ -47,6 +53,7 @@ JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数
 - Sources/ToolboxCoreTests、Sources/ToolboxUITests：可执行行为测试。
 - NsToolBox.xcodeproj、Resources、scripts：Xcode 工程、应用元数据与打包脚本。
 - docs/superpowers：已批准设计、实现计划和验证记录。
+- docs/development：持续维护的问题列表、修复指南与记录模板。
 
 首版不包含文件导入保存、JSON Schema、大文件流式处理、同步滚动、账号、云同步及插件系统。Intel/M 系列和 macOS 13 的完整实机矩阵仍需在对应设备上验收；构建架构与最低版本检查不能代替实机测试。
 
