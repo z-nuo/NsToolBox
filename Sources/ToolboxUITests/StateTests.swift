@@ -6,7 +6,22 @@ import ToolboxCore
 @main
 struct StateTests {
     @MainActor
-    static func main() async throws {
+    static func main() {
+        setbuf(stdout, nil)
+        let application = NSApplication.shared
+        application.setActivationPolicy(CommandLine.arguments.contains("--render") ? .regular : .accessory)
+        Task { @MainActor in
+            do { try await runTests() }
+            catch { print("ToolboxUITests failed:", error); exit(1) }
+            application.stop(nil)
+            application.postEvent(NSEvent.otherEvent(with: .applicationDefined, location: .zero,
+                modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0)!, atStart: false)
+        }
+        application.run()
+    }
+
+    @MainActor
+    static func runTests() async throws {
         let model = JSONToolModel()
         model.mode = .compare
         model.leftText = #"{"x":1}"#
@@ -36,8 +51,10 @@ struct StateTests {
         codec.clear()
         precondition(codec.input.isEmpty && codec.output.isEmpty && !codec.isError)
         try testEditorStylingAndUndo()
+        try testLineNumbersAndEditing()
+        try await testModeAndInputRetention()
         try await renderPreviews()
-        print("ToolboxUITests: state transitions, debounce, error recovery, editor styling, undo and native layout passed")
+        print("ToolboxUITests: state, debounce, errors, line numbers, styling and undo passed" + (CommandLine.arguments.contains("--render") ? "; native workflows passed" : ""))
     }
 
 
@@ -76,6 +93,7 @@ struct StateTests {
     @MainActor
     static func renderPreviews() async throws {
         guard CommandLine.arguments.contains("--render") else { return }
+        try await testWorkspaceInteraction()
         let model = JSONToolModel()
         model.mode = .compare
         model.leftText = "{\n  \"name\": \"NsToolBox\",\n  \"version\": 1,\n  \"tools\": [\"JSON\", \"Base64\"]\n}"
@@ -83,50 +101,75 @@ struct StateTests {
         try await waitUntil { model.differences.count == 2 }
         try await render(JSONToolView(model: model), name: "json-compare")
         try await render(ToolboxRootView(), name: "app-shell")
+        try await render(ToolboxRootView(), name: "app-shell-dark-minimum", size: NSSize(width: 980, height: 640), dark: true)
+        model.mode = .validate
+        model.leftText = "{\n  \"a\":\n}"
+        try await waitUntil { model.leftError != nil }
+        try await render(JSONToolView(model: model), name: "json-validation", size: NSSize(width: 780, height: 570))
         let codec = EncodingToolModel(kind: .base64)
         codec.input = "NsToolBox · 你好，开发者！"
         try await render(EncodingToolView(model: codec), name: "base64")
     }
 
     @MainActor
-    static func render<V: View>(_ content: V, name: String) async throws {
+    static func render<V: View>(_ content: V, name: String, size: NSSize = NSSize(width: 1180, height: 740), dark: Bool = false) async throws {
         let view = NSHostingView(rootView: content)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 740), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.contentView = view
-        window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
-        window.orderFront(nil)
-        view.frame = NSRect(x: 0, y: 0, width: 1180, height: 740)
+        window.title = "NsToolBox"
+        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        NSApp.setActivationPolicy(.regular)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        view.frame = NSRect(origin: .zero, size: size)
         try await Task.sleep(nanoseconds: 300_000_000)
         view.layoutSubtreeIfNeeded()
+        for child in descendants(view, of: NSScrollView.self) { child.layoutSubtreeIfNeeded(); child.documentView?.displayIfNeeded() }
+        window.displayIfNeeded()
+        if CommandLine.arguments.contains("--capture") {
+            let destination = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/previews")
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+            let capture = Process()
+            capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            capture.arguments = ["-x", "-l", String(window.windowNumber), destination.appendingPathComponent(name + "-window.png").path]
+            try capture.run()
+            capture.waitUntilExit()
+            print("Window capture:", name, capture.terminationStatus)
+        }
         if name == "app-shell" {
-            func tables(_ view: NSView) -> [NSTableView] {
-                (view as? NSTableView).map { [$0] } ?? view.subviews.flatMap(tables)
-            }
-            let tableRows = tables(view).map(\.numberOfRows)
-            print("App sidebar table rows:", tableRows)
-            precondition(tableRows.contains(3), "Sidebar must expose all three tools")
-            func editors(_ view: NSView) -> [NSTextView] {
-                (view as? NSTextView).map { [$0] } ?? view.subviews.flatMap(editors)
-            }
+            let navigation = descendants(view, of: NSSplitView.self).first!
+            precondition(navigation.subviews.count >= 2)
+            precondition((120...200).contains(navigation.subviews[0].frame.width), "Category column width must be bounded")
             func editor(_ label: String) -> NSTextView? {
-                editors(view).first { $0.accessibilityLabel() == label }
+                descendants(view, of: NSTextView.self).first { $0.accessibilityLabel() == label }
             }
-            let table = tables(view).first { $0.numberOfRows == 3 }!
+            func selectTool(_ label: String) {
+                let index = ToolRoute.allCases.firstIndex { $0.rawValue == label }!
+                let content = navigation.subviews[1]
+                let point = content.convert(NSPoint(x: CGFloat(index) * 104 + 52,
+                    y: content.isFlipped ? 17 : content.bounds.height - 17), to: nil)
+                click(point, in: window)
+            }
             let jsonInput = editor("JSON 输入")!
             jsonInput.insertText(#"{"saved":1}"#, replacementRange: NSRange(location: 0, length: 0))
             try await waitUntil { editor("格式化结果")?.string.contains("saved") == true }
-            table.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+            precondition(editor("格式化结果")?.isEditable == false)
+            selectTool("Base64")
             try await waitUntil { editor("输入文本") != nil }
             editor("输入文本")!.insertText("hello", replacementRange: NSRange(location: 0, length: 0))
             try await waitUntil { editor("编码结果")?.string == "aGVsbG8=" }
-            table.selectRowIndexes(IndexSet(integer: 2), byExtendingSelection: false)
+            selectTool("URL")
             try await waitUntil { editor("输入文本")?.string == "" }
             editor("输入文本")!.insertText("a+b /", replacementRange: NSRange(location: 0, length: 0))
             try await waitUntil { editor("编码结果")?.string == "a%2Bb%20%2F" }
-            table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            selectTool("Base64")
+            try await waitUntil { editor("输入文本")?.string == "hello" }
+            selectTool("JSON")
             try await waitUntil { editor("JSON 输入")?.string == #"{"saved":1}"# }
-            print("Native UI: sidebar switching, JSON/Base64/URL input/output and input retention passed")
+            print("Native UI: category, top tabs, JSON/Base64/URL input/output and input retention passed")
         }
+
         let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
         view.cacheDisplay(in: view.bounds, to: bitmap)
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/previews")
@@ -137,11 +180,48 @@ struct StateTests {
     }
 
     @MainActor
-    static func waitUntil(_ condition: () -> Bool) async throws {
+    static func descendants<T: NSView>(_ view: NSView, of type: T.Type) -> [T] {
+        (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, of: type) }
+    }
+
+    @MainActor
+    static func click(_ point: NSPoint, in window: NSWindow) {
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)!
+            window.sendEvent(event)
+        }
+    }
+
+    @MainActor
+    static func testModeAndInputRetention() async throws {
+        let model = JSONToolModel()
+        model.leftText = #"{"x":1}"#
+        model.rightText = #"{"x":2}"#
+        model.mode = .compare
+        try await waitUntil { model.differences.count == 1 }
+        model.mode = .validate
+        try await waitUntil { model.message == "JSON 有效" }
+        precondition(model.rightText == #"{"x":2}"# && model.outputText.isEmpty)
+        model.mode = .format
+        try await waitUntil { model.outputText.contains("x") }
+        model.mode = .compare
+        try await waitUntil { model.differences.count == 1 }
+        model.leftText = ""
+        precondition(model.rightText == #"{"x":2}"#, "Clearing one side must preserve the other")
+        precondition(model.differences.isEmpty, "Clearing a side invalidates old highlights immediately")
+        model.leftText = "{"
+        try await waitUntil { model.leftError != nil }
+        precondition(model.leftError?.offset == 1)
+    }
+
+    @MainActor
+    static func waitUntil(file: StaticString = #fileID, line: UInt = #line, _ condition: () -> Bool) async throws {
         for _ in 0..<150 {
             if condition() { return }
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        preconditionFailure("Timed out waiting for UI state")
+        preconditionFailure("Timed out waiting for UI state", file: file, line: line)
     }
 }

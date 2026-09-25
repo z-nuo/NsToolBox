@@ -37,7 +37,10 @@
 | [NST-011](#nst-011) | 构建流程 | 构建运行中删除源码；stat error | 已解决 |
 | [NST-012](#nst-012) | Swift 编译 | 可选类型模式、throwing autoclosure、Actor 隔离 | 已解决 |
 | [NST-013](#nst-013) | UI 验证 | 离屏截图缺少系统材质与侧边栏 | 已规避 |
-| [NST-014](#nst-014) | 界面规划 | 当前布局不符合用户预期，暂停开发重新规划 | 待定位 |
+| [NST-014](#nst-014) | 界面规划 | 当前布局不符合用户预期，重新规划并实现 | 待验证 |
+| [NST-015](#nst-015) | 编辑器绘制 | 行号尺越界遮住文本、面板标题 | 已解决 |
+| [NST-016](#nst-016) | 辅助功能 | 编辑器复用后标签和编辑状态未同步 | 待验证 |
+| [NST-017](#nst-017) | UI 测试 | 窗口截图失败、SwiftUI AX 子树为空 | 已规避 |
 
 ## 通用排查入口
 
@@ -266,16 +269,68 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 ### NST-014 · 当前布局不符合用户预期
 
 - **发现 / 更新日期**：2026-09-25 / 2026-09-25。
-- **状态 / 来源**：待定位；用户反馈，属于设计需求偏差，尚未认定为代码缺陷。
+- **状态 / 来源**：待验证；用户反馈，属于设计需求偏差，尚未认定为代码缺陷。
 - **环境与影响**：当前 macOS 应用；用户认为整体布局不符合预期，要求停止开发，先重新规划界面。
 - **现象与复现**：当前左栏直接列出 JSON、Base64、URL；用户希望左栏改为工具集分类，三个工具移到主工作区顶部的二级工具栏。双栏内容采用左侧输入、右侧结果，对比时两侧输入。
 - **定位与根因**：已确认现有导航层级与用户期望不符，且需采用代码编辑器式的紧凑、高信息密度风格；不属于已确认的布局渲染故障。
-- **处理指南**：暂停功能开发与界面实现。已按逐步确认的需求整理 [紧凑工作区规划草案](../superpowers/specs/2026-09-25-compact-workspace-design.md)，新增尺寸、行号、分栏和差异面板细节明确标为建议。
-- **验证**：仅阅读现有界面源码并整理规划，没有修改应用代码或执行构建。整体草案待用户审阅，布局偏差尚未修复，状态保持待定位。
+- **处理指南**：按已批准的 [紧凑工作区规划](../superpowers/specs/2026-09-25-compact-workspace-design.md) 实现分类导航、顶部工具栏、统一双栏、行号与差异面板。
+- **验证**：状态、行号、撤销与组合态测试通过；真实窗口点击、模式标签、单侧清空撤销、格式化撤销、校验定位均通过。已检查默认 / 最小窗口与浅深色截图，用户对最终布局的验收仍待确认。完整结果见 [紧凑工作区验证记录](../superpowers/validation/2026-09-25-compact-workspace.md)。
 - **关联**：[主界面](../../Sources/ToolboxUI/ToolboxRootView.swift)、[JSON 页面](../../Sources/ToolboxUI/JSONToolView.swift)、[编解码页面](../../Sources/ToolboxUI/EncodingToolView.swift)。
-- **下一步 / 关闭条件**：先确认界面方案；重新获得实现指示后再开发，并以实际界面验收关闭问题。
+- **下一步 / 关闭条件**：用户打开本次构建并确认布局符合预期后关闭；技术验证不代替需求验收。
 
 | 日期 | 操作或新证据 | 结果与状态变化 |
 | --- | --- | --- |
 | 2026-09-25 | 用户要求暂停开发并重新规划布局 | 待定位；进入需求澄清 |
 | 2026-09-25 | 用户逐步确认分类导航、顶部工具栏、统一双栏与紧凑风格 | 已形成规划草案，等待整体审阅；未恢复开发 |
+| 2026-09-25 | 用户明确批准按规划实现 | 修复中；恢复开发与验证 |
+| 2026-09-25 | 实现并通过原生交互及窗口截图检查 | 待验证；等待用户布局验收 |
+
+<a id="nst-015"></a>
+
+### NST-015 · 行号尺越界绘制遮住文本与面板标题
+
+- **发现 / 更新日期**：2026-09-25 / 2026-09-25。
+- **状态 / 来源**：已解决；紧凑布局开发中的真实窗口截图复现。
+- **环境与影响**：Intel、macOS 26.7、AppKit NSRulerView；双栏中行号存在，但编辑文本、标题和复制 / 清空按钮消失。
+- **复现**：显示带原生行号尺的 JSON 对比页，输入两侧有效 JSON；模型和 glyph 布局正常，截图仍只有行号。
+- **定位与根因**：行号尺直接填充 drawHashMarksAndLabels 传入的 dirty rect，没有限制到自身 bounds；绘制覆盖邻接区域。只增加尺内裁剪后，文本、标题和按钮在真实窗口截图中同时恢复。
+- **失败尝试**：将 textContainer 改为有限大尺寸不能恢复显示，已撤回；单纯强制布局、displayIfNeeded 也无效。
+- **修复指南**：保存图形上下文，使用 bounds 设置 clip，只绘制 bounds 与 dirty rect 的交集，结束恢复上下文。避免依赖调用方隐式裁剪。
+- **验证**：真实窗口 json-compare、base64 截图恢复正常；新增 bitmap 回归，验证越界 dirty rect 不覆盖尺外像素且不泄漏 clip。回归在 `swift run ToolboxUITests --render --capture` 中通过（退出码 0）。
+- **关联**：[CodeEditor.swift](../../Sources/ToolboxUI/CodeEditor.swift)、[EditorTests.swift](../../Sources/ToolboxUITests/EditorTests.swift)。
+- **防复发**：自定义 AppKit 绘制显式裁剪，状态与布局断言之外仍检查真实窗口。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-25 | 窗口截图发现行号以外内容缺失 | 复现成功 |
+| 2026-09-25 | 有限容器尺寸与强制布局 | 无效 |
+| 2026-09-25 | 仅限制行号尺绘制范围并重新截图 | 文本、标题、按钮恢复；已解决 |
+
+<a id="nst-016"></a>
+
+### NST-016 · 复用编辑器未同步辅助功能名称和编辑状态
+
+- **发现 / 更新日期**：2026-09-25 / 2026-09-25。
+- **状态 / 来源**：待验证；代码审查发现，未收到真实 VoiceOver 用户故障反馈。
+- **环境与影响**：SwiftUI NSViewRepresentable 复用 NSTextView；JSON 格式化 / 压缩 / 对比与编码 / 解码模式切换。
+- **现象与复现**：左侧视觉标题随模式变化，但 accessibilityLabel 仅初始化设置；更新文本时仍使用旧 isEditable，存在只读转编辑时拒绝替换的风险。
+- **定位与根因**：makeNSView 内设置的属性不会随 SwiftUI 参数自动同步；updateNSView 缺少同步，且状态设置顺序不当。
+- **修复指南**：先同步 isEditable 和 accessibilityLabel，再执行模型文本替换、样式与选区更新，保留 marked text 保护。
+- **验证**：编辑器状态测试通过；真实宿主模式切换、标签与只读属性断言已通过（退出码 0）；真实 VoiceOver 朗读尚未人工验收。
+- **关联**：[CodeEditor.swift](../../Sources/ToolboxUI/CodeEditor.swift)、[工作区交互测试](../../Sources/ToolboxUITests/WorkspaceInteractionTests.swift)。
+- **下一步**：原生标签断言已通过；真实 VoiceOver 场景仍需人工验收，保持待验证。
+
+<a id="nst-017"></a>
+
+### NST-017 · 命令行 SwiftUI 测试窗口与辅助功能树不完整
+
+- **发现 / 更新日期**：2026-09-25 / 2026-09-25。
+- **状态 / 来源**：已规避；真实测试错误与环境限制。
+- **环境与影响**：SwiftPM 可执行测试、NSHostingView、macOS 26.7；异步 main 不等于完整 NSApplication 生命周期。
+- **现象**：窗口截图报 could not create image from window；SwiftUI accessibilityChildren 为空，分类断言失败，虽然原生视图和实际分类文字存在。
+- **定位证据**：测试改为同步 main 启动 NSApplication.run，异步 Task 执行用例后 stop，窗口自身截图成功。SwiftUI AX 子树仍未完整暴露；设置旧 AXManualAccessibility 属性无效，已撤回。
+- **修复 / 规避指南**：真实窗口验证启动 AppKit 事件循环；导航测试向自身窗口发送 NSEvent 点击，再验证实际编辑器输入输出与保留结果，不用空 AX 子树推断控件缺失。仅截取测试进程自己的窗口，截图不可用时明确报告。
+- **附带编译错误**：NSAccessibility 是具体类型，不能写 any NSAccessibility；需要协议类型时使用 NSAccessibilityProtocol。已修正，最终导航测试不依赖完整 SwiftUI AX 树。
+- **验证**：窗口截图返回 0，窗口事件坐标按各视图 isFlipped 转换，并选取按钮实际命中范围；顶部 JSON → Base64 → URL → Base64 → JSON 点击与数据保留断言通过；完整 VoiceOver 树未验证。
+- **关联**：[StateTests.swift](../../Sources/ToolboxUITests/StateTests.swift)、[NST-013](#nst-013)。
+- **防复发 / 下一步**：区分测试宿主缺陷、截图能力限制与实际界面问题；保留原生视图标签断言和用户场景验收。

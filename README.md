@@ -11,6 +11,12 @@ SwiftUI + AppKit 原生 macOS 开发者工具箱。最低 macOS 13，支持 Inte
 
 JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数字按精确数值比较（1 与 1.0 相等）。格式化保留数字原文，不通过 Double/Decimal 中转，避免大整数与指数精度损失。重复对象字段报错；嵌套深度最多 256 层；错误列号及编辑器定位使用 UTF-16。
 
+## 界面布局
+
+左侧按工具集分类，当前为「开发工具」；工作区顶部切换 JSON、Base64 和 URL。各工具采用紧凑双栏，左侧输入、右侧结果，JSON 对比时两侧均可编辑。支持拖动分栏、行号、当前行提示、单侧清空、校验错误定位和折叠差异列表，外观跟随系统明暗。
+
+布局设计与验证见 [紧凑工作区规划](docs/superpowers/specs/2026-09-25-compact-workspace-design.md) 和 [验证记录](docs/superpowers/validation/2026-09-25-compact-workspace.md)。
+
 ## 构建和运行
 
 需要 Swift 5.9+ 和匹配的 macOS SDK；可使用完整 Xcode 15+，或已安装对应 SDK 的 Command Line Tools。
@@ -37,7 +43,7 @@ JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数
 
     swift run ToolboxUITests --render
 
-渲染结果位于 build/previews。测试覆盖 JSON 无损处理、非法输入、数字精度、UTF-16 源范围、结构化差异、编解码、状态恢复、防抖、编辑器语法色和文本撤销。它们不是 XCTest 目标，请使用以上命令运行。
+增加 `--capture` 可截取测试进程自身窗口；测试会暂时显示测试窗口。渲染结果位于 build/previews。测试覆盖 JSON 无损处理、非法输入、数字精度、UTF-16 源范围、结构化差异、编解码、状态恢复、防抖、编辑器语法色和文本撤销。它们不是 XCTest 目标，请使用以上命令运行。
 
 ## 问题记录与排障
 

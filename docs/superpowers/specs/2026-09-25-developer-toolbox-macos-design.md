@@ -1,5 +1,7 @@
 # NsToolBox macOS 开发者工具箱设计
 
+本文件保留首版设计历史。界面导航与布局已由 [紧凑工作区规划](2026-09-25-compact-workspace-design.md) 替代，其余核心功能与平台约束继续适用。
+
 ## 1. 目标
 
 将 NsToolBox 开发为原生 macOS 应用，首版提供开发者常用的 JSON、Base64 和 URL 工具。

@@ -6,87 +6,153 @@ struct JSONToolView: View {
     @ObservedObject var model: JSONToolModel
     @State private var leftSelection: EditorSelection?
     @State private var rightSelection: EditorSelection?
+    @State private var showDifferences = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("JSON 工具").font(.title2.bold())
-                    Text("格式化、校验和结构化对比 · 本地处理").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("清空", action: model.clear)
-            }
-            HStack {
+        VStack(spacing: 0) {
+            WorkspaceToolbar {
                 Picker("模式", selection: $model.mode) {
                     ForEach(JSONMode.allCases) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).frame(maxWidth: 360)
+                }.pickerStyle(.segmented).frame(width: 280)
                 Spacer()
                 if model.mode == .compare {
                     Button("格式化两侧", action: model.formatBoth)
-                        .disabled(model.leftText.isEmpty || model.rightText.isEmpty || model.isError)
+                        .disabled(model.leftText.isEmpty || model.rightText.isEmpty || model.isError || model.isProcessing)
                         .help("统一缩进与字段顺序，再进行结构化对比")
                 }
             }
-            if model.mode == .compare { compareEditor } else { singleEditor }
-            HStack(alignment: .top) {
-                if model.isProcessing { ProgressView().controlSize(.small) }
-                else { Image(systemName: model.isError ? "exclamationmark.triangle.fill" : "info.circle").foregroundStyle(model.isError ? Color.red : Color.secondary) }
-                Text(model.message).font(.callout).foregroundStyle(model.isError ? Color.red : Color.secondary).textSelection(.enabled)
-                Spacer(minLength: 0)
+            Divider()
+            HSplitView {
+                EditorPane(title: model.mode == .compare ? "左侧 · 原始 JSON" : "JSON 输入",
+                           text: $model.leftText, highlights: highlights(for: true), error: model.leftError,
+                           selection: leftSelection)
+                if model.mode == .compare {
+                    EditorPane(title: "右侧 · 对比 JSON", text: $model.rightText,
+                               highlights: highlights(for: false), error: model.rightError, selection: rightSelection)
+                } else if model.mode == .validate {
+                    validationReport
+                } else {
+                    EditorPane(title: model.mode == .format ? "格式化结果" : "压缩结果",
+                               text: .constant(model.outputText), editable: false,
+                               placeholder: model.isError ? "JSON 无效，请检查左侧输入" : "结果将显示在这里")
+                }
             }
-            .frame(minHeight: 20)
+            if model.mode == .compare { differencePanel }
+            Divider()
+            WorkspaceStatus(message: model.message, isError: model.isError, isProcessing: model.isProcessing,
+                            counts: counts)
         }
-        .padding(20)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(WorkspaceStyle.background)
         .onChange(of: model.leftText) { _ in leftSelection = nil; rightSelection = nil }
         .onChange(of: model.rightText) { _ in leftSelection = nil; rightSelection = nil }
+        .onChange(of: model.mode) { _ in leftSelection = nil; rightSelection = nil }
     }
 
-    private var singleEditor: some View {
-        HStack(spacing: 14) {
-            EditorPane(title: "JSON 输入", text: $model.leftText, error: model.leftError)
-            if model.mode != .validate {
-                EditorPane(title: model.mode == .format ? "格式化结果" : "压缩结果", text: .constant(model.outputText), editable: false)
+    private var counts: String {
+        if model.mode == .compare { return "左侧 \(model.leftText.count) 字符 · 右侧 \(model.rightText.count) 字符" }
+        if model.mode == .validate { return "输入 \(model.leftText.count) 字符" }
+        return "输入 \(model.leftText.count) 字符 · 输出 \(model.outputText.count) 字符"
+    }
+
+    private var validationReport: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("校验报告").fontWeight(.medium)
+                Text("只读").foregroundStyle(.secondary)
+                Spacer()
+                CopyButton(text: model.isProcessing || model.leftText.isEmpty ? "" : model.message)
+            }
+            .font(.system(size: 12)).controlSize(.small)
+            .padding(.horizontal, 8).frame(height: WorkspaceStyle.paneHeaderHeight)
+            .background(WorkspaceStyle.chrome)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    if model.leftText.isEmpty {
+                        Text("输入 JSON 后显示校验报告").foregroundStyle(.secondary)
+                    } else if model.isProcessing {
+                        Text("正在校验…").foregroundStyle(.secondary)
+                    } else if let error = model.leftError {
+                        Label("JSON 无效", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                        Text(error.message).textSelection(.enabled)
+                        Button("定位到第 \(error.line) 行，第 \(error.column) 列") {
+                            let length = (model.leftText as NSString).length
+                            let offset = min(error.offset, length)
+                            leftSelection = EditorSelection(range: NSRange(location: offset, length: offset < length ? 1 : 0))
+                        }
+                        .accessibilityIdentifier("validation-locate-error")
+                        .controlSize(.small)
+                    } else {
+                        Label("JSON 有效", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text("语法检查通过").foregroundStyle(.secondary)
+                    }
+                }
+                .font(.system(size: 12))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
             }
         }
+        .frame(minWidth: WorkspaceStyle.minimumPaneWidth, maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("validation-report")
     }
 
-    private var compareEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 14) {
-                EditorPane(title: "左侧 · 原始 JSON", text: $model.leftText, highlights: highlights(for: true), error: model.leftError, selection: leftSelection)
-                EditorPane(title: "右侧 · 对比 JSON", text: $model.rightText, highlights: highlights(for: false), error: model.rightError, selection: rightSelection)
-            }
-            HStack(spacing: 14) {
+    private var differencePanel: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 10) {
+                Button {
+                    showDifferences.toggle()
+                } label: {
+                    Label(differenceSummary, systemImage: showDifferences ? "chevron.down" : "chevron.right")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("toggle-differences")
                 differenceLabel(.added)
                 differenceLabel(.removed)
                 differenceLabel(.modified)
-                Spacer()
-                Text("忽略对象字段顺序 · 数组顺序敏感").foregroundStyle(.secondary)
-            }.font(.caption)
-            if !model.differences.isEmpty {
+                Spacer(minLength: 4)
+                Image(systemName: "info.circle")
+                    .help("忽略对象字段顺序；数组顺序敏感；数字按精确值比较")
+                    .accessibilityLabel("对比规则：忽略对象字段顺序，数组顺序敏感")
+            }
+            .font(.system(size: 11)).padding(.horizontal, 8).frame(height: 28)
+            .background(WorkspaceStyle.chrome)
+            if showDifferences {
+                Divider()
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if model.differences.isEmpty {
+                            Text(model.message).foregroundStyle(.secondary).padding(8)
+                        }
                         ForEach(model.differences, id: \.path) { difference in
                             Button {
                                 leftSelection = difference.leftRange.map { EditorSelection(range: $0) }
                                 rightSelection = difference.rightRange.map { EditorSelection(range: $0) }
                             } label: {
-                                HStack {
-                                    differenceLabel(difference.kind).frame(width: 70, alignment: .leading)
-                                    Text(difference.path.description).font(.system(.caption, design: .monospaced)).foregroundStyle(.primary)
-                                    Spacer()
+                                HStack(spacing: 8) {
+                                    differenceLabel(difference.kind).frame(width: 56, alignment: .leading)
+                                    Text(difference.path.description).font(.system(size: 12, design: .monospaced))
+                                        .foregroundStyle(.primary)
+                                    Spacer(minLength: 0)
                                     Image(systemName: "arrow.up.left.and.arrow.down.right").foregroundStyle(.secondary)
-                                }.padding(.horizontal, 10).padding(.vertical, 6).contentShape(Rectangle())
-                            }.buttonStyle(.plain).help("点击定位到两侧对应的差异")
+                                }
+                                .padding(.horizontal, 8).frame(minHeight: 24).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain).help("定位两侧对应差异")
+                            .accessibilityIdentifier("difference-" + difference.path.description)
                         }
-                    }
+                    }.font(.system(size: 11))
                 }
-                .frame(height: 118)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                .frame(height: 120)
             }
         }
+    }
+
+    private var differenceSummary: String {
+        if model.isProcessing { return "差异 · 处理中" }
+        if model.isError { return "差异 · 等待有效 JSON" }
+        if model.leftText.isEmpty && model.rightText.isEmpty { return "差异 · 等待输入" }
+        return "差异 \(model.differences.count)"
     }
 
     private func highlights(for left: Bool) -> [EditorHighlight] {

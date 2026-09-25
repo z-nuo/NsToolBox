@@ -23,6 +23,7 @@ struct CopyButton: View {
         } label: {
             Label(feedback ?? "复制", systemImage: feedback == "已复制" ? "checkmark" : "doc.on.doc")
         }
+        .frame(width: 58)
         .disabled(text.isEmpty)
         .help("复制该编辑区的文本")
         .task(id: request) {
@@ -41,39 +42,43 @@ struct EditorPane: View {
     var highlights: [EditorHighlight] = []
     var error: JSONParseError?
     var selection: EditorSelection?
+    var placeholder: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(title).font(.headline)
-                Text(editable ? "可编辑" : "只读").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                CopyButton(text: text).controlSize(.small)
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Text(title).fontWeight(.medium).lineLimit(1)
+                if !editable { Text("只读").foregroundStyle(.secondary) }
+                if error != nil {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                        .help(error?.localizedDescription ?? "")
+                }
+                Spacer(minLength: 4)
+                CopyButton(text: text)
+                if editable {
+                    Button("清空") { text = "" }
+                        .disabled(text.isEmpty)
+                        .accessibilityLabel("清空" + title)
+                        .help("仅清空" + title)
+                }
             }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .font(.system(size: 12))
+            .controlSize(.small)
+            .padding(.horizontal, 8)
+            .frame(height: WorkspaceStyle.paneHeaderHeight)
+            .background(WorkspaceStyle.chrome)
             Divider()
             ZStack(alignment: .topLeading) {
                 CodeEditor(text: $text, highlights: highlights, isEditable: editable, syntaxHighlighting: syntax,
                            selection: selection, accessibilityLabel: title)
                 if text.isEmpty {
-                    Text(editable ? "在此粘贴或输入文本…" : "处理结果将显示在这里")
-                        .font(.system(size: 13, design: .monospaced)).foregroundStyle(.tertiary)
-                        .padding(12).allowsHitTesting(false)
+                    Text(placeholder ?? (editable ? "粘贴或输入文本…" : "结果将显示在这里"))
+                        .font(.system(size: 13, design: .monospaced)).foregroundStyle(.secondary)
+                        .padding(.leading, 56).padding(.top, 8).allowsHitTesting(false)
                 }
             }
-            Divider()
-            HStack {
-                Text("\(text.count) 字符").monospacedDigit()
-                Spacer()
-                if let error { Text(error.localizedDescription).foregroundStyle(.red).lineLimit(2).help(error.localizedDescription) }
-                else { Text("UTF-8").foregroundStyle(.secondary) }
-            }
-            .font(.caption).foregroundStyle(.secondary).padding(8)
         }
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WorkspaceStyle.background)
+        .frame(minWidth: WorkspaceStyle.minimumPaneWidth, maxWidth: .infinity, maxHeight: .infinity)
     }
 }
