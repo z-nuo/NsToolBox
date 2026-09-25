@@ -6,6 +6,8 @@
     <string>NsToolBox</string>
     <key>CFBundleExecutable</key>
     <string>NsToolBox</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
     <key>CFBundleIdentifier</key>
     <string>com.nstoolbox.app</string>
     <key>CFBundleName</key>

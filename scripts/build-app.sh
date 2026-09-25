@@ -24,6 +24,7 @@ build_arch x86_64
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 lipo -create "$BUILD_DIR/arm64/NsToolBox" "$BUILD_DIR/x86_64/NsToolBox" -output "$APP_DIR/Contents/MacOS/NsToolBox"
 cp "$ROOT_DIR/Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
+cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$APP_DIR"
 lipo "$APP_DIR/Contents/MacOS/NsToolBox" -verify_arch arm64 x86_64
 codesign --verify --deep --strict "$APP_DIR"

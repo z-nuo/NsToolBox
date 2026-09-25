@@ -49,3 +49,11 @@ JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数
 - docs/superpowers：已批准设计、实现计划和验证记录。
 
 首版不包含文件导入保存、JSON Schema、大文件流式处理、同步滚动、账号、云同步及插件系统。Intel/M 系列和 macOS 13 的完整实机矩阵仍需在对应设备上验收；构建架构与最低版本检查不能代替实机测试。
+
+## 应用图标
+
+“大乱炖”图标以一口装着 JSON、代码和链接符号的炖锅，表达工具集合的定位。可编辑源文件为 Resources/AppIcon.svg，提供 PNG 和 ICNS；命令行与 Xcode 构建均打包该图标。
+
+如需重新导出（需要 librsvg 的 rsvg-convert）：
+
+    ./scripts/generate-app-icon.sh
