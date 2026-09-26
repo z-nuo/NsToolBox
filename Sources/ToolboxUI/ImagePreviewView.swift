@@ -107,7 +107,7 @@ private struct ImagePreviewPane: View {
     }
 }
 
-private struct Checkerboard: View {
+struct Checkerboard: View {
     var body: some View {
         Canvas { context, size in
             let cell: CGFloat = 12

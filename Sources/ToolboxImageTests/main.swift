@@ -224,6 +224,82 @@ func testInvalidAndLimits() throws {
     options.jpegQuality = 0.8; options.background.red = -1
     try expectError("底色") { _ = try ImageProcessor.process(url: url, options: options) }
 }
+
+func testEditGeometry() throws {
+    let colors: [[UInt8]] = [[255,0,0,255], [0,255,0,255], [0,0,255,255], [255,255,0,255],
+                             [255,0,255,255], [0,255,255,255], [80,40,20,255], [20,40,80,255]]
+    let url = try fixture("edit-grid.png", width: 4, height: 2, pixel: { x, y in colors[y * 4 + x] })
+    let crop = try ImageProcessor.edit(url: url, options: ImageEditOptions(crop: ImagePixelRect(x: 1, y: 0, width: 2, height: 2)))
+    try expect(crop.width == 2 && crop.height == 2, "裁剪尺寸应准确")
+    let cropped = rgba(try decode(crop.data))
+    try expect(Array(cropped[0..<4]) == colors[1] && Array(cropped[4..<8]) == colors[2]
+               && Array(cropped[8..<12]) == colors[5], "裁剪坐标应从已归一化图像左上角计")
+    let clockwise = try ImageProcessor.edit(url: url, options: ImageEditOptions(quarterTurns: 1))
+    let turned = rgba(try decode(clockwise.data))
+    try expect(clockwise.width == 2 && clockwise.height == 4, "旋转 90° 应交换宽高")
+    try expect(Array(turned[0..<4]) == colors[4] && Array(turned[4..<8]) == colors[0], "顺时针旋转的首行像素错误")
+    let horizontal = rgba(try decode(ImageProcessor.edit(url: url, options: ImageEditOptions(flipHorizontal: true)).data))
+    try expect(Array(horizontal[0..<4]) == colors[3] && Array(horizontal[4..<8]) == colors[2], "水平翻转像素错误")
+    let vertical = rgba(try decode(ImageProcessor.edit(url: url, options: ImageEditOptions(flipVertical: true)).data))
+    try expect(Array(vertical[0..<4]) == colors[4] && Array(vertical[4..<8]) == colors[5], "垂直翻转像素错误")
+    try expectError("裁剪") { _ = try ImageProcessor.edit(url: url, options: ImageEditOptions(crop: ImagePixelRect(x: 3, y: 1, width: 2, height: 2))) }
+}
+
+func testEditOrientationAndAlphaInfo() throws {
+    let oriented = try fixture("oriented-edit.jpg", width: 20, height: 10, orientation: 6,
+                               pixel: { x, _ in x < 10 ? [255,0,0,255] : [0,0,255,255] })
+    let result = try ImageProcessor.edit(url: oriented, options: ImageEditOptions(crop: ImagePixelRect(x: 0, y: 0, width: 10, height: 10)))
+    try expect(result.width == 10 && result.height == 10, "裁剪应使用方向归一化后的尺寸")
+    try expect(rgba(try decode(result.data))[0] > 220, "方向归一化后上方应是原图左侧红色像素")
+    let clear = try fixture("clear-info.png", width: 2, height: 1, pixel: { x, _ in x == 0 ? [255,0,0,255] : [0,0,0,0] })
+    let opaqueAlpha = try fixture("opaque-alpha.png", width: 2, height: 1)
+    let noAlpha = try fixture("no-alpha.jpg", width: 2, height: 1, type: UTType.jpeg.identifier as CFString)
+    try expect(try ImageProcessor.inspect(url: clear).transparency == .containsTransparentPixels, "真实透明像素应被识别")
+    try expect(try ImageProcessor.inspect(url: opaqueAlpha).transparency == .opaqueAlphaChannel, "全不透明 alpha 应单独分类")
+    try expect(try ImageProcessor.inspect(url: noAlpha).transparency == .noAlphaChannel, "JPEG 应无 alpha")
+    try expect(!(try ImageProcessor.inspect(url: clear).colorDescription.isEmpty), "应展示色彩信息")
+    let edited = try ImageProcessor.edit(url: clear, options: ImageEditOptions(flipHorizontal: true))
+    try expect(rgba(try decode(edited.data))[3] == 0, "编辑后 PNG 仍应保留透明像素")
+}
+
+func test16BitAlphaPrecision() throws {
+    var bytes = Data()
+    for component: UInt16 in [0, 0, 0, 0xfffe, 0, 0, 0, 0xffff] {
+        bytes.append(UInt8(component >> 8))
+        bytes.append(UInt8(truncatingIfNeeded: component))
+    }
+    let provider = CGDataProvider(data: bytes as CFData)!
+    let image = CGImage(width: 2, height: 1, bitsPerComponent: 16, bitsPerPixel: 64,
+                        bytesPerRow: 16, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                        bitmapInfo: CGBitmapInfo.byteOrder16Big.union(CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue)),
+                        provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+    let url = directory.appendingPathComponent("subtle-alpha-16.png")
+    let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+    CGImageDestinationAddImage(destination, image, nil)
+    try expect(CGImageDestinationFinalize(destination), "16 位 alpha 样本编码失败")
+    try expect(try decode(Data(contentsOf: url)).bitsPerComponent == 16, "回归样本必须确实保留 16 位通道")
+    let info = try ImageProcessor.inspect(url: url)
+    try expect(info.transparency == .containsTransparentPixels, "alpha=65534 的 16 位 PNG 仍含真实透明像素")
+
+    var opaqueBytes = bytes
+    opaqueBytes.replaceSubrange(6..<8, with: [0xff, 0xff])
+    let opaqueProvider = CGDataProvider(data: opaqueBytes as CFData)!
+    let opaqueImage = CGImage(width: 2, height: 1, bitsPerComponent: 16, bitsPerPixel: 64,
+                              bytesPerRow: 16, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                              bitmapInfo: CGBitmapInfo.byteOrder16Big.union(CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue)),
+                              provider: opaqueProvider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+    let opaqueURL = directory.appendingPathComponent("opaque-alpha-16.png")
+    let opaqueDestination = CGImageDestinationCreateWithURL(opaqueURL as CFURL, UTType.png.identifier as CFString, 1, nil)!
+    CGImageDestinationAddImage(opaqueDestination, opaqueImage, nil)
+    try expect(CGImageDestinationFinalize(opaqueDestination), "全不透明 16 位样本编码失败")
+    try expect(try ImageProcessor.inspect(url: opaqueURL).transparency == .opaqueAlphaChannel,
+               "全不透明 16 位 Alpha 应保持独立分类")
+}
+
+func testEditOutputDimensionLimit() throws {
+    let url = try fixture("wide-edit.png", width: 16_385, height: 1)
+    try expectError("16384") { _ = try ImageProcessor.edit(url: url, options: ImageEditOptions()) }
+}
 func probeForegroundSubject() throws {
     let url = try fixture("sphere.png", width: 512, height: 512, pixel: { x, y in
         let dx = Double(x - 256) / 140, dy = Double(y - 240) / 140
@@ -263,6 +339,9 @@ func probeVision() throws {
     }
 }
 var tests: [(String, () throws -> Void)] = [
+    ("裁剪旋转翻转真实像素", testEditGeometry), ("编辑方向与透明信息", testEditOrientationAndAlphaInfo),
+    ("16 位极浅透明度", test16BitAlphaPrecision),
+    ("编辑输出尺寸限制", testEditOutputDimensionLimit),
     ("识别、缩略图与 EXIF 方向", testInspectAndOrientation), ("PNG 原始精度保留", testPNGPreservesOriginalPrecision), ("EXIF 镜像", testMirroredOrientation), ("比例与精确缩放", testResize),
     ("透明度与 JPG 底色", testAlphaAndJPEG), ("去白底与软边透明度", testWhiteBackground), ("JPG 质量", testQuality),
     ("格式、非法参数与资源限制", testInvalidAndLimits), ("本机 Vision 空白图探测", probeVision), ("本机 Vision 主体探测", probeForegroundSubject)

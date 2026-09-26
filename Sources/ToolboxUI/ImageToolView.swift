@@ -18,6 +18,7 @@ struct ImageToolView: View {
     var selectTool: ((ImageToolRoute) -> Void)? = nil
     var useResult: ((ImageToolRoute) -> Void)? = nil
     @State private var isDropTarget = false
+    @State private var cropRatio = ImageCropRatio.free
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,9 +32,11 @@ struct ImageToolView: View {
                     Button(model.isCancelling ? "正在取消…" : "取消", action: model.cancel)
                         .disabled(model.isCancelling)
                 }
-                Button(model.tool.actionTitle, systemImage: "play.fill", action: model.processAll)
-                    .disabled(!model.canProcess)
-                if let useResult {
+                if model.tool != .info {
+                    Button(model.tool.actionTitle, systemImage: "play.fill", action: model.processAll)
+                        .disabled(!model.canProcess)
+                }
+                if let useResult, model.tool != .info {
                     Menu("将此结果用于…") {
                         ForEach(ImageToolRoute.allCases.filter { $0 != model.tool }) { tool in
                             Button(tool.rawValue) { useResult(tool) }
@@ -42,8 +45,10 @@ struct ImageToolView: View {
                     .disabled(model.isBusy || model.selectedItem?.resultURL == nil)
                     .help("把选中图片的结果复制到另一个工具，随后手动开始处理")
                 }
-                Button("导出结果…", systemImage: "square.and.arrow.up", action: chooseExportDirectory)
-                    .disabled(model.isBusy || !model.hasResults)
+                if model.tool != .info {
+                    Button("导出结果…", systemImage: "square.and.arrow.up", action: chooseExportDirectory)
+                        .disabled(model.isBusy || !model.hasResults)
+                }
             }
             Divider()
             parameters
@@ -62,8 +67,13 @@ struct ImageToolView: View {
             HStack(spacing: 0) {
                 queue.frame(width: 192)
                 Divider()
-                ImagePreviewView(item: model.selectedItem)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if model.tool == .info {
+                    ImageInformationView(item: model.selectedItem)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ImagePreviewView(item: model.selectedItem)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
@@ -77,7 +87,9 @@ struct ImageToolView: View {
             Divider()
             WorkspaceStatus(message: model.notice.isEmpty ? model.progressText : model.notice,
                             isError: !model.notice.isEmpty, isProcessing: model.isBusy,
-                            counts: "\(model.items.count) 张 · \(model.items.filter { $0.resultURL != nil }.count) 个结果")
+                            counts: model.tool == .info
+                                ? "\(model.items.count) 张 · \(model.items.filter { $0.state == .read }.count) 张已读取"
+                                : "\(model.items.count) 张 · \(model.items.filter { $0.resultURL != nil }.count) 个结果")
         }
         .background(WorkspaceStyle.background)
         .dropDestination(for: URL.self) { urls, _ in
@@ -90,7 +102,7 @@ struct ImageToolView: View {
     }
 
     private var tabs: some View {
-        HStack(spacing: 0) {
+        ScrollView(.horizontal, showsIndicators: true) { HStack(spacing: 0) {
             ForEach(ImageToolRoute.allCases) { route in
                 Button { selectTool?(route) } label: {
                     Text(route.rawValue)
@@ -107,8 +119,7 @@ struct ImageToolView: View {
                 .accessibilityIdentifier("image-tab-\(route.id)")
                 .accessibilityAddTraits(model.tool == route ? [.isSelected] : [])
             }
-            Spacer(minLength: 0)
-        }
+        }}
         .background(WorkspaceStyle.chrome)
     }
 
@@ -166,11 +177,73 @@ struct ImageToolView: View {
                      ? "以处理结果的实际体积为准。"
                      : "可在上方选择 JPG，再调整质量和透明区域底色。")
                     .foregroundStyle(.secondary)
+            case .edit:
+                editParameters
+            case .info:
+                Text("按文件实际内容显示格式、尺寸、色彩和像素透明度；选择列表中的图片查看详情。")
+                    .foregroundStyle(.secondary)
             }
         }
         .font(.system(size: 12)).controlSize(.small)
         .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
         .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
+    private var editParameters: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 10) {
+                Toggle("启用裁剪", isOn: Binding(get: { model.editOptions.crop != nil }, set: { enabled in
+                    guard enabled, let info = model.selectedItem?.info else { model.editOptions.crop = nil; return }
+                    model.editOptions.crop = ImagePixelRect(x: 0, y: 0, width: info.width, height: info.height)
+                })).toggleStyle(.checkbox).disabled(model.selectedItem?.info == nil)
+                Picker("比例", selection: $cropRatio) {
+                    ForEach(ImageCropRatio.allCases) { ratio in Text(ratio.rawValue).tag(ratio) }
+                }.frame(width: 155)
+                .onChange(of: cropRatio) { _, ratio in applyCropRatio(ratio) }
+                Text("坐标从归一化图片左上角开始，单位 px").foregroundStyle(.secondary)
+            }
+            if model.editOptions.crop != nil {
+                HStack(spacing: 7) {
+                    Text("X")
+                    cropField(\.x, label: "裁剪 X")
+                    Text("Y")
+                    cropField(\.y, label: "裁剪 Y")
+                    Text("宽")
+                    cropField(\.width, label: "裁剪宽度")
+                    Text("高")
+                    cropField(\.height, label: "裁剪高度")
+                }
+            }
+            HStack(spacing: 10) {
+                Button("左转 90°") { model.editOptions.quarterTurns -= 1 }
+                Button("右转 90°") { model.editOptions.quarterTurns += 1 }
+                Toggle("水平翻转", isOn: $model.editOptions.flipHorizontal).toggleStyle(.checkbox)
+                Toggle("垂直翻转", isOn: $model.editOptions.flipVertical).toggleStyle(.checkbox)
+                Text("当前顺时针 \(((model.editOptions.quarterTurns % 4) + 4) % 4 * 90)°")
+                    .foregroundStyle(.secondary)
+            }
+            Text("先裁剪、再旋转、最后翻转；预览确认后导出。编辑输出保留 PNG/JPG 格式，重新编码为 8 位 sRGB。")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func cropField(_ keyPath: WritableKeyPath<ImagePixelRect, Int>, label: String) -> some View {
+        TextField(label, value: Binding(get: { model.editOptions.crop?[keyPath: keyPath] ?? 0 }, set: { value in
+            guard var crop = model.editOptions.crop else { return }
+            crop[keyPath: keyPath] = value
+            model.editOptions.crop = crop
+        }), format: .number.grouping(.never))
+        .frame(width: 62).textFieldStyle(.roundedBorder).accessibilityLabel(label)
+    }
+
+    private func applyCropRatio(_ ratio: ImageCropRatio) {
+        guard let shape = ratio.shape, let info = model.selectedItem?.info else { return }
+        let width = min(info.width, Int((Double(info.height) * shape).rounded(.down)))
+        let height = min(info.height, Int((Double(info.width) / shape).rounded(.down)))
+        let size: (Int, Int) = Double(info.width) / Double(info.height) >= shape
+            ? (max(1, width), info.height) : (info.width, max(1, height))
+        model.editOptions.crop = ImagePixelRect(x: (info.width - size.0) / 2, y: (info.height - size.1) / 2,
+                                                width: size.0, height: size.1)
     }
 
     @ViewBuilder private var resizeParameters: some View {
@@ -272,6 +345,8 @@ struct ImageToolView: View {
         case .resize: return "仅调整尺寸 · 保留原格式 · 不执行抠图"
         case .format: return "仅转换格式 · 保留原尺寸 · 不执行抠图"
         case .compress: return "仅按当前格式和质量输出 · 保留原尺寸 · 不执行抠图"
+        case .edit: return "先裁剪、再旋转、最后翻转 · 输出原格式 · 不执行抠图"
+        case .info: return "读取实际文件内容和像素透明度 · 不产生处理结果"
         }
     }
 
@@ -297,6 +372,20 @@ struct ImageToolView: View {
         panel.allowsMultipleSelection = false
         panel.begin { response in
             if response == .OK, let directory = panel.url { model.export(to: directory) }
+        }
+    }
+}
+
+private enum ImageCropRatio: String, CaseIterable, Identifiable {
+    case free = "自由", square = "1:1", photo = "4:3", wide = "16:9", classic = "3:2"
+    var id: String { rawValue }
+    var shape: Double? {
+        switch self {
+        case .free: return nil
+        case .square: return 1
+        case .photo: return 4.0 / 3
+        case .wide: return 16.0 / 9
+        case .classic: return 3.0 / 2
         }
     }
 }
@@ -331,6 +420,7 @@ private struct ImageQueueRow: View {
         case .ready: return "checkmark.circle"
         case .exported: return "checkmark.circle.fill"
         case .failed: return "exclamationmark.triangle"
+        case .read: return "checkmark.circle.fill"
         }
     }
 }

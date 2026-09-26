@@ -19,9 +19,145 @@ public enum ImageProcessor {
             let bytes: Int
             do { bytes = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0 }
             catch { throw ProcessingError("无法读取图片文件体积：\(error.localizedDescription)") }
+            // Inspect color and channel layout without eagerly allocating full-size pixels.
+            // Only an alpha-bearing source needs the full pixel scan below.
+            guard let image = CGImageSourceCreateImageAtIndex(input.source, 0,
+                [kCGImageSourceShouldCache: false] as CFDictionary) else {
+                throw ProcessingError("图片解码失败，文件可能已损坏或不完整。")
+            }
+            let color = colorDescription(image)
+            let transparency = try transparency(of: image)
             return ImageInfo(width: input.width, height: input.height, fileBytes: bytes,
-                             format: input.format, thumbnailData: try encode(thumbnail, format: .png, quality: 1))
+                             format: input.format, thumbnailData: try encode(thumbnail, format: .png, quality: 1),
+                             colorDescription: color, transparency: transparency)
         }
+    }
+
+    public static func edit(url: URL, options: ImageEditOptions) throws -> ProcessedImage {
+        try autoreleasepool {
+            let input = try Input(url: url)
+            let crop = options.crop ?? ImagePixelRect(x: 0, y: 0, width: input.width, height: input.height)
+            guard crop.x >= 0, crop.y >= 0, crop.width > 0, crop.height > 0,
+                  crop.x <= input.width, crop.y <= input.height,
+                  crop.width <= input.width - crop.x, crop.height <= input.height - crop.y else {
+                throw ProcessingError("裁剪区域必须完全位于图片内，且宽高大于 0。")
+            }
+            let turns = ((options.quarterTurns % 4) + 4) % 4
+            let outputWidth = turns.isMultiple(of: 2) ? crop.width : crop.height
+            let outputHeight = turns.isMultiple(of: 2) ? crop.height : crop.width
+            guard outputWidth <= dimensionLimit, outputHeight <= dimensionLimit else {
+                throw ProcessingError("编辑输出单边不能超过 16384 像素。")
+            }
+            let source = try input.decode(maxDimension: max(input.width, input.height))
+            let pixels = try raster(source)
+            var output = [UInt8](repeating: 0, count: outputWidth * outputHeight * 4)
+            for y in 0..<outputHeight {
+                for x in 0..<outputWidth {
+                    let tx = options.flipHorizontal ? outputWidth - 1 - x : x
+                    let ty = options.flipVertical ? outputHeight - 1 - y : y
+                    let local: (Int, Int)
+                    switch turns {
+                    case 1: local = (ty, crop.height - 1 - tx)
+                    case 2: local = (crop.width - 1 - tx, crop.height - 1 - ty)
+                    case 3: local = (crop.width - 1 - ty, tx)
+                    default: local = (tx, ty)
+                    }
+                    let from = ((crop.y + local.1) * input.width + crop.x + local.0) * 4
+                    let to = (y * outputWidth + x) * 4
+                    output[to] = pixels[from]; output[to + 1] = pixels[from + 1]
+                    output[to + 2] = pixels[from + 2]; output[to + 3] = pixels[from + 3]
+                }
+            }
+            guard let provider = CGDataProvider(data: Data(output) as CFData),
+                  let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+                  let image = CGImage(width: outputWidth, height: outputHeight, bitsPerComponent: 8,
+                                      bitsPerPixel: 32, bytesPerRow: outputWidth * 4, space: colorSpace,
+                                      bitmapInfo: CGBitmapInfo.byteOrder32Big.union(CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)),
+                                      provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else {
+                throw ProcessingError("无法生成编辑后的图片。")
+            }
+            let data = try encode(image, format: input.format, quality: 0.95)
+            guard let resultSource = CGImageSourceCreateWithData(data as CFData, nil) else { throw ProcessingError("无法生成结果预览。") }
+            let thumbnail = try decodeThumbnail(resultSource, maxDimension: thumbnailLimit)
+            return ProcessedImage(data: data, thumbnailData: try encode(thumbnail, format: .png, quality: 1),
+                                  width: outputWidth, height: outputHeight, format: input.format)
+        }
+    }
+
+    private static func colorDescription(_ image: CGImage) -> String {
+        let model: String
+        switch image.colorSpace?.model {
+        case .rgb: model = "RGB"
+        case .monochrome: model = "灰度"
+        case .cmyk: model = "CMYK"
+        default: model = "未知色彩模型"
+        }
+        let profile = image.colorSpace?.name.map { String($0) } ?? "未嵌入色彩空间名称"
+        return "\(model) · \(image.bitsPerComponent) 位/通道 · \(profile)"
+    }
+
+    private static func transparency(of image: CGImage) throws -> ImageTransparency {
+        switch image.alphaInfo {
+        case .none, .noneSkipFirst, .noneSkipLast: return .noAlphaChannel
+        default: break
+        }
+        if image.bitsPerComponent > 8 {
+            return try containsTransparent16BitPixel(image) ? .containsTransparentPixels : .opaqueAlphaChannel
+        }
+        let bytes = try raster(image)
+        for alpha in stride(from: 3, to: bytes.count, by: 4) where bytes[alpha] < 255 {
+            return .containsTransparentPixels
+        }
+        return .opaqueAlphaChannel
+    }
+
+    private static func containsTransparent16BitPixel(_ image: CGImage) throws -> Bool {
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB) else {
+            throw ProcessingError("无法读取图片色彩空间。")
+        }
+        // A small tile keeps the scan buffer bounded even for a very wide image.
+        // Checking two native 16-bit alpha bytes avoids rounding 65534/65535 to 255/255.
+        for y in stride(from: 0, to: image.height, by: 128) {
+            for x in stride(from: 0, to: image.width, by: 2048) {
+                let width = min(2048, image.width - x)
+                let height = min(128, image.height - y)
+                guard let tile = image.cropping(to: CGRect(x: x, y: y, width: width, height: height)) else {
+                    throw ProcessingError("无法读取图片透明度像素。")
+                }
+                var bytes = [UInt8](repeating: 0, count: width * height * 8)
+                let transparent = bytes.withUnsafeMutableBytes { raw -> Bool? in
+                    guard let context = CGContext(data: raw.baseAddress, width: width, height: height,
+                                                  bitsPerComponent: 16, bytesPerRow: width * 8, space: space,
+                                                  bitmapInfo: CGBitmapInfo.byteOrder16Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue) else {
+                        return nil
+                    }
+                    context.draw(tile, in: CGRect(x: 0, y: 0, width: width, height: height))
+                    let pixels = raw.bindMemory(to: UInt8.self)
+                    for offset in stride(from: 6, to: pixels.count, by: 8)
+                    where pixels[offset] != 0xff || pixels[offset + 1] != 0xff {
+                        return true
+                    }
+                    return false
+                }
+                guard let transparent else { throw ProcessingError("无法读取 16 位透明度像素。") }
+                if transparent { return true }
+            }
+        }
+        return false
+    }
+
+    private static func raster(_ image: CGImage) throws -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        let worked = bytes.withUnsafeMutableBytes { raw -> Bool in
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(data: raw.baseAddress, width: image.width, height: image.height,
+                                          bitsPerComponent: 8, bytesPerRow: image.width * 4, space: space,
+                                          bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            return true
+        }
+        guard worked else { throw ProcessingError("无法读取图片像素。") }
+        return bytes
     }
 
     public static func process(url: URL, options: ImageProcessingOptions) throws -> ProcessedImage {

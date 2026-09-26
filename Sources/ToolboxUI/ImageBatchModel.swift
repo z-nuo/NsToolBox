@@ -4,7 +4,7 @@ import Foundation
 import ToolboxImages
 
 enum ImageToolRoute: String, CaseIterable, Identifiable {
-    case cutout = "抠图", resize = "缩放", format = "格式转换", compress = "压缩"
+    case cutout = "抠图", resize = "缩放", format = "格式转换", compress = "压缩", edit = "裁剪旋转", info = "图片信息"
     var id: String { rawValue }
     var actionTitle: String {
         switch self {
@@ -12,6 +12,8 @@ enum ImageToolRoute: String, CaseIterable, Identifiable {
         case .resize: return "调整尺寸"
         case .format: return "转换格式"
         case .compress: return "压缩图片"
+        case .edit: return "生成编辑预览"
+        case .info: return "查看信息"
         }
     }
 
@@ -37,13 +39,14 @@ enum ImageToolRoute: String, CaseIterable, Identifiable {
             result.format = options.format
             result.jpegQuality = options.jpegQuality
             result.background = options.background
+        case .edit, .info: break
         }
         return result
     }
 }
 
 enum ImageItemState: String {
-    case waiting = "待处理", processing = "处理中", ready = "可导出", exported = "已导出", failed = "失败"
+    case waiting = "待处理", processing = "处理中", ready = "可导出", exported = "已导出", failed = "失败", read = "已读取"
 }
 
 struct ImageBatchItem: Identifiable {
@@ -72,6 +75,9 @@ final class ImageBatchModel: ObservableObject {
     let tool: ImageToolRoute
     @Published var options = ImageProcessingOptions() {
         didSet { if oldValue != options { invalidateResults() } }
+    }
+    @Published var editOptions = ImageEditOptions() {
+        didSet { if oldValue != editOptions { invalidateResults() } }
     }
     @Published private(set) var isBusy = false
     @Published private(set) var isCancelling = false
@@ -105,7 +111,7 @@ final class ImageBatchModel: ObservableObject {
 
     var selectedItem: ImageBatchItem? { items.first { $0.id == selection } }
     var hasResults: Bool { items.contains { $0.resultURL != nil } }
-    var canProcess: Bool { !isBusy && items.contains { $0.sourceURL != nil } }
+    var canProcess: Bool { tool != .info && !isBusy && items.contains { $0.sourceURL != nil } }
 
     deinit {
         if let terminationObserver { NotificationCenter.default.removeObserver(terminationObserver) }
@@ -148,20 +154,28 @@ final class ImageBatchModel: ObservableObject {
                             throw error
                         }
                     }
-                    item.sourceURL = imported.0; item.originalPreviewURL = imported.1; item.info = ImageInfo(width: imported.2.width, height: imported.2.height, fileBytes: imported.2.fileBytes, format: imported.2.format, thumbnailData: Data())
+                    item.sourceURL = imported.0; item.originalPreviewURL = imported.1
+                    item.info = ImageInfo(width: imported.2.width, height: imported.2.height,
+                                          fileBytes: imported.2.fileBytes, format: imported.2.format,
+                                          thumbnailData: Data(), colorDescription: imported.2.colorDescription,
+                                          transparency: imported.2.transparency)
+                    if self.tool == .info { item.state = .read }
                 } catch {
                     item.state = .failed; item.error = error.localizedDescription
                 }
                 self.items.append(item)
                 if self.selection == nil || selectImported { self.selection = id }
             }
-            self.finish(Task.isCancelled ? "已停止导入，已导入的图片保留" : "已导入 \(self.items.count) 张图片")
+            self.finish(Task.isCancelled ? "已停止导入，已导入的图片保留"
+                        : self.tool == .info ? "已读取 \(self.items.filter { $0.state == .read }.count) 张图片"
+                        : "已导入 \(self.items.count) 张图片")
         }
     }
 
     func processAll() {
         guard canProcess else { return }
         let requestedOptions = options
+        let requestedEditOptions = editOptions
         let ids = items.filter { $0.sourceURL != nil }.map(\.id)
         invalidateResults()
         let processingRevision = revision
@@ -173,13 +187,16 @@ final class ImageBatchModel: ObservableObject {
             for (index, id) in ids.enumerated() {
                 guard !Task.isCancelled, self.revision == processingRevision,
                       let position = self.items.firstIndex(where: { $0.id == id }), let source = self.items[position].sourceURL else { break }
-                let settings = self.tool.processingOptions(from: requestedOptions, sourceFormat: self.items[position].info!.format)
+                let route = self.tool
+                let settings = route.processingOptions(from: requestedOptions, sourceFormat: self.items[position].info!.format)
                 self.items[position].state = .processing
                 self.progressText = "正在处理 \(index + 1) / \(ids.count) · \(self.items[position].name)"
                 do {
                     let result = try await self.work {
                         try autoreleasepool {
-                            let image = try ImageProcessor.process(url: source, options: settings)
+                            let image = try route == .edit
+                                ? ImageProcessor.edit(url: source, options: requestedEditOptions)
+                                : ImageProcessor.process(url: source, options: settings)
                             let output = directory.appendingPathComponent(id.uuidString + "-\(processingRevision)-result." + image.format.fileExtension)
                             let preview = directory.appendingPathComponent(id.uuidString + "-result-preview.png")
                             try image.data.write(to: output, options: .atomic)

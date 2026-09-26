@@ -45,9 +45,42 @@ public struct ImageInfo: Sendable {
     public let fileBytes: Int
     public let format: ImageOutputFormat
     public let thumbnailData: Data
-    public init(width: Int, height: Int, fileBytes: Int, format: ImageOutputFormat, thumbnailData: Data) {
+    public let colorDescription: String
+    public let transparency: ImageTransparency
+    public init(width: Int, height: Int, fileBytes: Int, format: ImageOutputFormat, thumbnailData: Data,
+                colorDescription: String = "未知", transparency: ImageTransparency = .noAlphaChannel) {
         self.width = width; self.height = height; self.fileBytes = fileBytes
         self.format = format; self.thumbnailData = thumbnailData
+        self.colorDescription = colorDescription; self.transparency = transparency
+    }
+}
+
+public enum ImageTransparency: String, Sendable {
+    case noAlphaChannel = "无 Alpha 通道"
+    case opaqueAlphaChannel = "有 Alpha，全部不透明"
+    case containsTransparentPixels = "存在透明像素"
+}
+
+/// Coordinates are integer pixels from the top left of the orientation-normalized image.
+public struct ImagePixelRect: Sendable, Equatable {
+    public var x: Int
+    public var y: Int
+    public var width: Int
+    public var height: Int
+    public init(x: Int, y: Int, width: Int, height: Int) {
+        self.x = x; self.y = y; self.width = width; self.height = height
+    }
+}
+
+public struct ImageEditOptions: Sendable, Equatable {
+    public var crop: ImagePixelRect?
+    public var quarterTurns: Int
+    public var flipHorizontal: Bool
+    public var flipVertical: Bool
+    public init(crop: ImagePixelRect? = nil, quarterTurns: Int = 0,
+                flipHorizontal: Bool = false, flipVertical: Bool = false) {
+        self.crop = crop; self.quarterTurns = quarterTurns
+        self.flipHorizontal = flipHorizontal; self.flipVertical = flipVertical
     }
 }
 
