@@ -53,6 +53,20 @@
 | [NST-027](#nst-027) | PNG / 交互 | 转成 PNG 后白色背景仍存在 | 待验证 |
 | [NST-028](#nst-028) | 抠图 | Vision 无法分离白底文字素材 | 已规避 |
 | [NST-029](#nst-029) | 诊断环境 | Python 缺少 PIL，无法读取图像通道 | 已规避 |
+| [NST-030](#nst-030) | 开发脚本 | 技能脚本直接运行 permission denied | 已规避 |
+| [NST-031](#nst-031) | 测试入口 | 多文件 main.swift 与 @main 冲突 | 已解决 |
+| [NST-032](#nst-032) | 文本对比 | 首次上一处差异定位错误 | 已解决 |
+| [NST-033](#nst-033) | 文本哈希 | 大输入未设资源上限 | 已解决 |
+| [NST-034](#nst-034) | 图片信息 | 16 位 Alpha 被舍入为完全不透明 | 已解决 |
+| [NST-035](#nst-035) | 重命名日志 | 执行与撤销日志 ID 重复 | 已解决 |
+| [NST-036](#nst-036) | 重命名撤销 | 改名后结果身份未与原文件复核 | 已解决 |
+| [NST-037](#nst-037) | 重命名序号 | 大序号截断或溢出静默省略 | 已解决 |
+| [NST-038](#nst-038) | 重命名列表 | 执行成功后仍显示旧文件路径 | 已解决 |
+| [NST-039](#nst-039) | 时间戳界面 | 复制按钮文字显示省略号 | 已解决 |
+| [NST-040](#nst-040) | 重命名撤销 | 撤销链刷新指纹可能掩盖外部编辑 | 已解决 |
+| [NST-041](#nst-041) | 图片编辑 | 编辑输出未复用单边上限 | 已解决 |
+| [NST-042](#nst-042) | 图片信息界面 | 读取完成仍显示待处理 | 已解决 |
+| [NST-043](#nst-043) | 原生交互测试 | 图片工具切换等待超时 | 已规避 |
 
 ## 通用排查入口
 
@@ -137,7 +151,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **根因**：此环境缺少完整 Xcode 的测试组件；不能由此推断 SwiftUI 无法编译。
 - **修复指南**：本工程测试已改为 SwiftPM 可执行目标，用 swift run ToolboxCoreTests 和 swift run ToolboxUITests。需要 XCTest/Xcode GUI 时使用兼容的完整 Xcode，先核对开发目录，不盲目切换全局工具链。
 - **验证**：2026-09-25 核心 11 组和 UI 测试、命令行双架构构建通过；完整 Xcode 构建未执行。
-- **关联**：[Package.swift](../../Package.swift)、[核心测试](../../Sources/ToolboxCoreTests/main.swift)、[UI 测试](../../Sources/ToolboxUITests/StateTests.swift)；cf08300、ed3319e。
+- **关联**：[Package.swift](../../Package.swift)、[核心测试](../../Sources/ToolboxCoreTests/Runner.swift)、[UI 测试](../../Sources/ToolboxUITests/StateTests.swift)；cf08300、ed3319e。
 - **防复发**：当前工程测试入口不是 swift test，遵循 README。
 
 <a id="nst-003"></a>
@@ -173,7 +187,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **根因证据**：Swift Character 可把 CRLF 合为一个字符；分别过滤 CR、LF 会漏掉组合。标量检查发现末尾仍有 13、10。
 - **修复指南**：使用 Character.isWhitespace 过滤空白，继续严格检查字符、填充和 UTF-8，不忽略其他非法字符。
 - **验证**：核心 testBase64TextAndWhitespace 覆盖 CRLF、中文、空串、非法填充、非 UTF-8；2026-09-25 通过。
-- **关联**：[TextCodec.swift](../../Sources/ToolboxCore/TextCodec.swift)、[核心测试](../../Sources/ToolboxCoreTests/main.swift)；cf08300。
+- **关联**：[TextCodec.swift](../../Sources/ToolboxCore/TextCodec.swift)、[核心测试](../../Sources/ToolboxCoreTests/Runner.swift)；cf08300。
 - **防复发**：保留 CRLF 样例，不只测试 LF。
 
 <a id="nst-006"></a>
@@ -208,7 +222,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **触发与影响**：超长整数、1e400、极大指数经 Double / Decimal 中转可能舍入或超范围，导致格式化改变值、对比误判。
 - **修复指南**：JSONNumber 保留原始词法文本，序列化输出原文；比较使用符号、有效数字和精确指数规范化，不转为浮点数。
 - **验证**：核心 testFormatPreservesUnicodeAndLargeNumbers、testNumericEquality、testHugeExponentsAndPreciseIntegers 覆盖大数保真、相邻超长整数、1 与 1.0 相等；2026-09-25 通过。
-- **关联**：[JSONValue.swift](../../Sources/ToolboxCore/JSONValue.swift)、[JSONWriter.swift](../../Sources/ToolboxCore/JSONWriter.swift)、[核心测试](../../Sources/ToolboxCoreTests/main.swift)；cf08300、31b7b21。
+- **关联**：[JSONValue.swift](../../Sources/ToolboxCore/JSONValue.swift)、[JSONWriter.swift](../../Sources/ToolboxCore/JSONWriter.swift)、[核心测试](../../Sources/ToolboxCoreTests/Runner.swift)；cf08300、31b7b21。
 - **防复发**：同时检查序列化与比较，不默认 Foundation 数字类型总是无损。
 
 <a id="nst-009"></a>
@@ -246,6 +260,8 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **关联**：[核心源码](../../Sources/ToolboxCore)、[Package.swift](../../Package.swift)；流程纠正，无独立提交。
 - **防复发**：同一源码的编辑和构建顺序执行，独立只读检查才可并行。
 
+- **2026-09-26 复发**：第一批扩展并行编写源文件时，SwiftPM 报 `input file modified during build`，以及根视图引用尚未落盘类型的中间态错误；修改完成后重跑编译通过。主任务统一运行最终构建，不把并行中间状态当作最终验证结果。
+
 <a id="nst-012"></a>
 
 ### NST-012 · Swift 类型与 Actor 隔离错误
@@ -262,8 +278,10 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 | nil is not compatible with closure result type 'EditorHighlight' | 类型变化后调用仍有旧参数，导致推断报错 | 同步构造参数，显式指定 compactMap 返回 EditorHighlight? |
 
 - **验证**：2026-09-25 核心、UI 目标及双架构应用编译通过。
-- **关联**：[JSONParser.swift](../../Sources/ToolboxCore/JSONParser.swift)、[核心测试](../../Sources/ToolboxCoreTests/main.swift)、[JSONToolModel.swift](../../Sources/ToolboxUI/JSONToolModel.swift)、[JSONToolView.swift](../../Sources/ToolboxUI/JSONToolView.swift)；cf08300、ed3319e。
+- **关联**：[JSONParser.swift](../../Sources/ToolboxCore/JSONParser.swift)、[核心测试](../../Sources/ToolboxCoreTests/Runner.swift)、[JSONToolModel.swift](../../Sources/ToolboxUI/JSONToolModel.swift)、[JSONToolView.swift](../../Sources/ToolboxUI/JSONToolView.swift)；cf08300、ed3319e。
 - **防复发**：从首个真实类型错误排查，不关闭并发检查来规避线程安全。
+
+- **2026-09-26 复发**：新增测试中 `&&` 右侧与 `precondition` 自动闭包直接包含 throwing 文件读取，分别报 `operator can throw but expression is not marked with try` 和 throwing autoclosure 错误；先读取为局部常量再断言后测试通过。图片信息视图 `.frame` 参数组合报 `extra argument width in call`，拆分合法修饰器后编译通过。预览测试访问重命名规则旧接口报 `has no member prefix/numberingEnabled`，同步为 `model.options` 后通过；未为测试保留冗余兼容属性。
 
 <a id="nst-013"></a>
 
@@ -339,7 +357,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 
 ### NST-017 · 命令行 SwiftUI 测试窗口与辅助功能树不完整
 
-- **发现 / 更新日期**：2026-09-25 / 2026-09-25。
+- **发现 / 更新日期**：2026-09-25 / 2026-09-26。
 - **状态 / 来源**：已规避；真实测试错误与环境限制。
 - **环境与影响**：SwiftPM 可执行测试、NSHostingView、macOS 26.7；异步 main 不等于完整 NSApplication 生命周期。
 - **现象**：窗口截图报 could not create image from window；SwiftUI accessibilityChildren 为空，分类断言失败，虽然原生视图和实际分类文字存在。
@@ -360,6 +378,10 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 2026-09-26 恢复工作后再次执行同一命令，7 个真实窗口截图全部退出 0；截图恢复原因未确认，不能归因为权限或锁屏。已检查图片页面浅深色真实窗口。深色结果白块在真实窗口仍出现，已从截图问题中分离为 [NST-024](#nst-024)。`--capture` 目前只报告单张截图返回码，主测试退出 0 仅表示行为断言通过，不能当作截图成功。
 
 恢复验证：2026-09-26 重跑原命令，7 个截图退出 0；当前路径可用，间歇性原因未确认，状态改为已规避。
+
+- **2026-09-26 第一批扩展再次复发**：`swift run ToolboxUITests --render --capture` 行为断言退出 0，但本次窗口截图子进程均退出 1，报 `could not create image from window`。原因仍未确认，重新打开为待定位；保留 NSView 位图与原生点击验证，不能将离屏位图当作真实窗口截图。
+
+- **本轮最终恢复验证**：相同 `--render --capture` 命令最终退出 0，15 张真实窗口截图全部退出 0。已目视新增工具页面，当前路径恢复，状态改为已规避；恢复原因仍未确认，不归因于权限或锁屏。
 
 <a id="nst-018"></a>
 
@@ -603,3 +625,260 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 | --- | --- | --- |
 | 2026-09-26 | 导入 PIL | 模块不存在 |
 | 2026-09-26 | 改用原生通道与像素探针 | 检查通过，已规避 |
+
+<a id="nst-030"></a>
+
+### NST-030 · 技能辅助脚本缺少可执行权限
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已规避；第一批扩展的计划工作目录初始化命令失败。
+- **环境与影响**：本机 zsh；开发辅助脚本，不影响应用。
+- **现象与复现**：直接运行 subagent-driven-development 的 `scripts/sdd-workspace` 返回 `permission denied`，退出 126。
+- **定位与根因**：脚本首行为 bash shebang，直接执行被权限拒绝；无需修改产品或插件文件权限。
+- **修复指南**：通过 `bash <技能目录>/scripts/sdd-workspace docs/superpowers/plans/2026-09-26-toolbox-phase-one.md` 显式解释执行。
+- **验证**：上述 bash 命令退出 0，返回当前计划独立工作目录。
+- **关联**：[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；无产品代码修改。
+- **下一步**：同类脚本先检查 shebang，避免为运行脚本改变插件权限。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 直接运行后改用 bash | 退出 126 后退出 0，已规避 |
+
+<a id="nst-031"></a>
+
+### NST-031 · 核心测试拆分文件后入口冲突
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；新增功能测试时实际编译失败。
+- **环境与影响**：SwiftPM ToolboxCoreTests 可执行目标，原先只有带 @main 的 main.swift。
+- **现象与复现**：增加 UtilityTests.swift 后运行 `swift build --target ToolboxCoreTests`，报 `@main attribute cannot be used in a module that contains top-level code`。
+- **定位与根因**：多文件目标中 main.swift 被编译器作为顶层入口，与 @main 入口声明冲突。
+- **修复指南**：将 main.swift 改名为 Runner.swift，保留 @main CoreTestRunner；各测试通过扩展添加并从 Runner 调用。
+- **验证**：改名后 `swift run ToolboxCoreTests` 退出 0，原 11 组和第一批新增逻辑通过；初始编译同时出现新 API 尚未定义的预期测试先行错误。
+- **关联**：[测试入口](../../Sources/ToolboxCoreTests/Runner.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)。
+- **下一步**：保持 Runner.swift 入口，新增测试通过扩展并显式接入。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 新增多文件功能测试后编译 | 入口冲突，重命名为 Runner.swift，测试通过 |
+
+<a id="nst-032"></a>
+
+### NST-032 · 首次上一处差异定位错误
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；代码审查发现，非用户故障。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批文本对比。
+- **现象与复现**：有两处及以上差异时首次点击上一处会定位倒数第二处。
+- **定位与根因**：初始索引 -1 与模运算组合导致偏移。
+- **修复指南**：将导航索引置于模型，首次上一处直接选择最后一处。
+- **验证**：`swift run ToolboxUITests` 退出 0，覆盖首次前后导航和输入变化清除范围。
+- **关联**：[TextCompareView.swift](../../Sources/ToolboxUI/TextCompareView.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：保持导航边界回归。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-033"></a>
+
+### NST-033 · 大输入未设资源上限
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；代码审查风险预防，未观察到用户卡死。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批文本哈希。
+- **现象与复现**：旧实现对任意长度文本在主线程同步计算摘要。
+- **定位与根因**：未限制输入量，大规模粘贴可能增加主线程耗时。
+- **修复指南**：限制每次输入为 2 MiB UTF-8，超限清空结果并显示错误。
+- **验证**：`swift run ToolboxUITests` 退出 0，验证超限输入清空旧摘要；固定向量录入缺失也已校正。
+- **关联**：[DeveloperUtilityViews.swift](../../Sources/ToolboxUI/DeveloperUtilityViews.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：维持明确上限；超大文件摘要另行设计流式读取。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-034"></a>
+
+### NST-034 · 16 位 Alpha 被舍入为完全不透明
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；独立审查与本地合成探针实测。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批图片信息。
+- **现象与复现**：生成 1×1、16 位 PNG，alpha=65534；原始通道为 FE FF，inspect 却返回 opaqueAlphaChannel。
+- **定位与根因**：检查透明度先转为 8 位像素，极浅透明舍入 255。
+- **修复指南**：按保留源 Alpha 精度的栅格检查，加入 65534 与 65535 边界测试。
+- **验证**：真实 16 位 PNG 回归先失败后通过；`swift run ToolboxImageTests` 14/14 组通过、退出 0。独立复审探针确认 alpha=65534 已分类为透明。扫描采用 2048×128 的 16 位分块，每块缓冲区最多 2 MiB；系统解码器另占内存，未实测峰值。
+- **关联**：[ImageProcessor.swift](../../Sources/ToolboxImages/ImageProcessor.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：保留原精度 alpha 检测；8 位源仍使用完整 RGBA 缓冲区。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-035"></a>
+
+### NST-035 · 执行与撤销日志 ID 重复
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；独立代码审查与探针实测。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批重命名日志。
+- **现象与复现**：两次执行、两次撤销产生 4 条日志却只有 2 个唯一 id，违反 SwiftUI ForEach 身份要求。
+- **定位与根因**：日志条目身份与操作关联身份混用。
+- **修复指南**：每条日志生成独立 UUID，使用 operationID 关联执行和撤销。
+- **验证**：`swift run ToolboxUITests` 退出 0，覆盖执行及撤销日志 ID 唯一性、TSV 导出。
+- **关联**：[BatchRename.swift](../../Sources/ToolboxCore/BatchRename.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：后续重试必须新增日志身份而不是复用旧条目。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-036"></a>
+
+### NST-036 · 改名后结果身份未与原文件复核
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；代码审查风险预防，未观察到真实文件损坏。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批重命名撤销。
+- **现象与复现**：改名后只要目标指纹非空就允许撤销；并发替换可能令记录关联错误文件。
+- **定位与根因**：执行后没有把目标的设备号、inode、大小、mtime 与原文件身份比较。
+- **修复指南**：执行后比较原身份；不匹配则记录改名成功但取消撤销资格。执行与撤销前仍重验，目标使用 RENAME_EXCL。
+- **验证**：`swift run ToolboxCoreTests` 退出 0，含外部修改/替换和拒绝覆盖测试；恶意精确竞态未执行。
+- **关联**：[BatchRename.swift](../../Sources/ToolboxCore/BatchRename.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：POSIX 路径核对和改名无法保证同一个源身份原子操作；明确首版限制。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-037"></a>
+
+### NST-037 · 大序号截断或溢出静默省略
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；代码审查发现并补回归。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批重命名序号。
+- **现象与复现**：公共选项传入超过 Int32 的序号，旧 `%d` 格式可能截断；Int 溢出时旧路径输出空序号。
+- **定位与根因**：Swift Int 经 C int 格式输出宽度不匹配，溢出缺少错误反馈。
+- **修复指南**：改为 String(Int) 后补零；溢出或参数非法明确显示错误。
+- **验证**：`swift run ToolboxCoreTests` 退出 0，含 Int.max、下一项溢出及补零测试。
+- **关联**：[RenameTests.swift](../../Sources/ToolboxCoreTests/RenameTests.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：保留大整数边界测试，即使 UI 当前限制起始值。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-038"></a>
+
+### NST-038 · 执行成功后仍显示旧文件路径
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；代码审查发现并补回归。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批重命名列表。
+- **现象与复现**：成功改名后列表 URL 保留原名，刷新预览错误显示源文件不存在。
+- **定位与根因**：结果日志正确，但列表未同步成功目标路径。
+- **修复指南**：仅映射实际成功项至新路径，失败项保持原路径；撤销后相应恢复。
+- **验证**：`swift run ToolboxUITests` 退出 0，覆盖两次执行、列表更新、清空后会话撤销。
+- **关联**：[BatchRenameView.swift](../../Sources/ToolboxUI/BatchRenameView.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：保持按 operationID 匹配实际结果，不能按成功项数量推断位置。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-039"></a>
+
+### NST-039 · 复制按钮文字显示省略号
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；本轮 NSView 渲染位图目视发现。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批时间戳界面。
+- **现象与复现**：时间戳输出行复用 58 点宽复制按钮，默认字号下只显示图标与省略号。
+- **定位与根因**：独立输出行缺少已有工具栏的小号控件环境。
+- **修复指南**：仅为时间戳输出行复制按钮指定 12 点字体和 small controlSize。
+- **验证**：`swift build --target ToolboxUI` 退出 0；修改后位图已目视确认“复制”文字完整；系统窗口截图仍失败，用户实际显示待确认，另见 NST-017。
+- **关联**：[DeveloperUtilityViews.swift](../../Sources/ToolboxUI/DeveloperUtilityViews.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：复核最小窗口可读性；不以构建通过代替视觉确认。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 待验证；验证边界如上 |
+
+- **最终显示确认**：真实 `timestamp-tool-window.png` 截图退出 0，两个输出行的“复制”文字均完整，状态改为已解决。
+
+<a id="nst-040"></a>
+
+### NST-040 · 撤销链刷新指纹可能掩盖外部编辑
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；主任务审查发现，非用户故障。
+- **环境与影响**：本机 Intel、macOS 26.7、Swift 6.3.3；第一批重命名撤销。
+- **现象与复现**：A 改为 B，外部编辑 B，再改为 C；撤销 C→B 后若只按 inode 刷新前序指纹，会让 A←B 接受外部修改内容。
+- **定位与根因**：刷新前序身份仅比较 device/inode，未保留内容大小与修改时间约束。
+- **修复指南**：前序指纹刷新必须同时匹配原 size/mtime，仅允许本应用重命名引起的 ctime 变化。
+- **验证**：真实文件回归确认撤销结果为 [成功, 失败]：B 保留外部修改，A 未恢复，第一步仍可定位；`swift run ToolboxCoreTests` 退出 0。
+- **关联**：[BatchRename.swift](../../Sources/ToolboxCore/BatchRename.swift)、[第一批计划](../superpowers/plans/2026-09-26-toolbox-phase-one.md)；本轮提交交付时关联验证报告。
+- **下一步**：确认第二步可以退回 B，而第一步保留失败记录，不继续重命名已修改文件。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现、定位并实施修正 | 已解决；验证边界如上 |
+
+<a id="nst-041"></a>
+
+### NST-041 · 图片编辑输出未校验单边尺寸上限
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；审查发现后补测试复现。
+- **环境与影响**：第一批新增独立图片编辑路径，Intel、macOS 26.7。
+- **现象与复现**：16385×1 PNG 编辑路径未拒绝，回归报 `FAIL 编辑输出尺寸限制：应拒绝：16384`。
+- **定位与根因**：新编辑路径有总像素上限，但遗漏原处理路径的输出单边 16384 限制。
+- **修复指南**：根据裁剪与旋转确定输出宽高，完整像素解码前检查单边上限；裁剪边界使用减法检查，避免整数相加溢出。
+- **验证**：同一测试先失败后通过，`swift run ToolboxImageTests` 14/14、退出 0。
+- **关联**：[图片处理](../../Sources/ToolboxImages/ImageProcessor.swift)、[像素测试](../../Sources/ToolboxImageTests/main.swift)。
+- **下一步**：所有新增输出路径保持相同资源约束。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 补边界测试并在解码前校验 | 已解决 |
+
+<a id="nst-042"></a>
+
+### NST-042 · 图片信息读取完成仍显示待处理状态
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已解决；NSView 渲染位图目视发现。
+- **环境与影响**：图片信息新入口；用户导入后已看到属性，但列表为待处理、底部为零结果，且没有处理按钮。
+- **现象与复现**：导入 PNG 到图片信息，属性已读取完成；仍沿用处理类工具的状态文字，预览无棋盘格。
+- **定位与根因**：检查类入口复用了处理类列表/底部状态文案，预览未复用透明底呈现。
+- **修复指南**：成功项改为已读取、底部展示读取数；隐藏无用结果传递入口，使用现有棋盘格展示透明像素。
+- **验证**：图片会话回归与 `--render --capture` 退出 0；真实 image-info-tool-window.png 确认“已读取”、读取数量、棋盘格正常且无结果传递入口。
+- **关联**：[图片界面](../../Sources/ToolboxUI/ImageToolView.swift)、[信息预览](../../Sources/ToolboxUI/ImageInformationView.swift)。
+- **下一步**：后续检查类工具继续使用检查状态，不复用处理结果文案。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 发现信息页状态与实际操作不符 | 真实窗口验证通过，已解决 |
+
+<a id="nst-043"></a>
+
+### NST-043 · 原生测试在图片工具切换时偶发等待超时
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：已规避；本轮最终图形测试实际失败，非用户反馈。
+- **环境与影响**：SwiftPM / NSHostingView 原生事件测试、Intel、macOS 26.7；该轮测试退出 132，后续打包因 && 未执行。
+- **现象与复现**：图片处理刚结束后发送顶部标签点击，`ImageOperationTests.swift` 等待 selectedTool 报 `Fatal error: Timed out waiting for UI state`。
+- **定位与假设**：同代码单独运行 `swift run ToolboxUITests --image-isolation-only --render` 退出 0，未稳定复现。假设是模型 isBusy 已完成、SwiftUI 按钮 disabled 状态尚未提交到视图；未证明为产品切换缺陷。
+- **规避指南**：仅在测试发送点击前等待 100 ms 并 layoutSubtreeIfNeeded；保留真实 NSEvent 点击及原目标状态断言，不直接修改模型冒充点击成功，不跳过原测试。
+- **验证**：最终 `swift run ToolboxUITests --render --capture` 退出 0，独立图片切换与全部原生工作流通过；15 张截图均退出 0。后续 `./scripts/build-app.sh` 退出 0。
+- **关联**：[原生图片交互测试](../../Sources/ToolboxUITests/ImageOperationTests.swift)、[NST-017](#nst-017)。修复提交 `8c49fb9`。
+- **下一步**：如再次复发记录具体路由、按钮可用性与窗口布局；当前计时规避不能证明间歇性根因已消除。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 完整图形测试一次超时，独立测试通过 | 假设为模型与视图更新时序差异 |
+| 2026-09-26 | 点击前等待视图更新，保留真实断言 | 完整测试与打包通过，已规避 |
+
+第一批扩展关联提交：核心 `5d316c7`、图片 `126fa65`、界面与原生工作流 `8c49fb9`。完整结果见 [第一批验证记录](../superpowers/validation/2026-09-26-toolbox-phase-one.md)。
