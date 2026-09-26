@@ -1,6 +1,6 @@
 # NsToolBox
 
-SwiftUI + AppKit 原生 macOS 开发者工具箱。最低 macOS 13，支持 Intel 和 Apple Silicon，所有数据均在本地处理。
+SwiftUI + AppKit 原生 macOS 工具箱，包含开发工具与图片处理。最低 macOS 14，支持 Intel 和 Apple Silicon，所有数据均在本地处理。
 
 ## 首版功能
 
@@ -11,9 +11,21 @@ SwiftUI + AppKit 原生 macOS 开发者工具箱。最低 macOS 13，支持 Inte
 
 JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数字按精确数值比较（1 与 1.0 相等）。格式化保留数字原文，不通过 Double/Decimal 中转，避免大整数与指数精度损失。重复对象字段报错；嵌套深度最多 256 层；错误列号及编辑器定位使用 UTF-16。
 
+## 图片处理
+
+批量添加或拖入 PNG / JPG，依次设置抠图、缩放、输出格式及质量，再点击「开始批量处理」。左侧图片列表显示逐项状态，原图和结果并排预览；「导出结果」保存全部成功结果到所选目录，自动编号避免覆盖原图或同名文件。
+
+- 本地自动去背景、人像抠图；无主体或系统算法失败时显示具体原因。
+- 按百分比或指定宽高缩放，默认保持比例。
+- PNG / JPG 互转；PNG 保留透明度，JPG 可选底色与质量。
+- PNG 未改变尺寸、不抠图且无需校正方向时保留原文件字节；像素处理会输出 8 位 sRGB，不保证文件更小。取消在当前系统调用结束后生效。
+- 限制单帧图片、单张 4000 万像素，输出单边最多 16384 像素；文件在当前会话缓存，正常退出清理。崩溃或强制终止不保证执行清理。
+
+实现与验证见 [图片处理设计](docs/superpowers/specs/2026-09-25-image-tools-design.md) 和 [验证记录](docs/superpowers/validation/2026-09-26-image-tools.md)。
+
 ## 界面布局
 
-左侧按工具集分类，当前为「开发工具」；工作区顶部切换 JSON、Base64 和 URL。各工具采用紧凑双栏，左侧输入、右侧结果，JSON 对比时两侧均可编辑。支持拖动分栏、行号、当前行提示、单侧清空、校验错误定位和折叠差异列表，外观跟随系统明暗。
+左侧按工具集分类，包含「开发工具」与「图片处理」；开发工具顶部切换 JSON、Base64 和 URL，图片处理顶部切换抠图、缩放、格式转换和压缩。各工具采用紧凑双栏，左侧输入、右侧结果，JSON 对比时两侧均可编辑。支持拖动分栏、行号、当前行提示、单侧清空、校验错误定位和折叠差异列表，外观跟随系统明暗。
 
 布局设计与验证见 [紧凑工作区规划](docs/superpowers/specs/2026-09-25-compact-workspace-design.md) 和 [验证记录](docs/superpowers/validation/2026-09-25-compact-workspace.md)。
 
@@ -30,13 +42,14 @@ JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数
 
 脚本分别构建 arm64、x86_64 Release 二进制，验证架构后合并并做 ad-hoc 本地签名。默认输出 build/NsToolBox.app，可直接打开或复制到 Applications。
 
-若使用 Xcode，打开 NsToolBox.xcodeproj，选择 NsToolBox scheme。工程通过本地 Swift Package 复用核心与界面源文件，无外部依赖。Release 的 ONLY_ACTIVE_ARCH 为 NO，最低部署目标为 13.0。正式对外分发前需配置自己的 Bundle ID、开发者证书与公证；当前产物是本地开发版。
+若使用 Xcode，打开 NsToolBox.xcodeproj，选择 NsToolBox scheme。工程通过本地 Swift Package 复用核心与界面源文件，无外部依赖。Release 的 ONLY_ACTIVE_ARCH 为 NO，最低部署目标为 14.0。正式对外分发前需配置自己的 Bundle ID、开发者证书与公证；当前产物是本地开发版。
 
 ## 测试
 
 为了让只有 Command Line Tools、没有 XCTest 的机器也能运行测试，测试以 SwiftPM 可执行目标提供：
 
     swift run ToolboxCoreTests
+    swift run ToolboxImageTests
     swift run ToolboxUITests
 
 可选原生界面渲染检查（需要登录图形会话）：
@@ -56,12 +69,13 @@ JSON 对比忽略对象字段顺序，数组按索引比较、顺序敏感，数
 - Sources/NsToolBox：SwiftUI 应用入口。
 - Sources/ToolboxUI：工具导航、页面、状态模型、NSTextView 桥接与剪贴板。
 - Sources/ToolboxCore：独立的 Foundation JSON/编码服务。
-- Sources/ToolboxCoreTests、Sources/ToolboxUITests：可执行行为测试。
+- Sources/ToolboxImages：ImageIO 编解码、缩放、透明合成和 Vision 本地抠图。
+- Sources/ToolboxCoreTests、Sources/ToolboxImageTests、Sources/ToolboxUITests：可执行行为测试。
 - NsToolBox.xcodeproj、Resources、scripts：Xcode 工程、应用元数据与打包脚本。
 - docs/superpowers：已批准设计、实现计划和验证记录。
 - docs/development：持续维护的问题列表、修复指南与记录模板。
 
-首版不包含文件导入保存、JSON Schema、大文件流式处理、同步滚动、账号、云同步及插件系统。Intel/M 系列和 macOS 13 的完整实机矩阵仍需在对应设备上验收；构建架构与最低版本检查不能代替实机测试。
+开发工具暂不包含文本文件导入保存、JSON Schema、大文件流式处理、同步滚动、账号、云同步及插件系统。Intel/M 系列和 macOS 14 的完整实机矩阵仍需在对应设备上验收；构建架构与最低版本检查不能代替实机测试。
 
 ## 应用图标
 

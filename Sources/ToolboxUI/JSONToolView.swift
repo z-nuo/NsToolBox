@@ -43,9 +43,9 @@ struct JSONToolView: View {
                             counts: counts)
         }
         .background(WorkspaceStyle.background)
-        .onChange(of: model.leftText) { _ in leftSelection = nil; rightSelection = nil }
-        .onChange(of: model.rightText) { _ in leftSelection = nil; rightSelection = nil }
-        .onChange(of: model.mode) { _ in leftSelection = nil; rightSelection = nil }
+        .onChange(of: model.leftText) { leftSelection = nil; rightSelection = nil }
+        .onChange(of: model.rightText) { leftSelection = nil; rightSelection = nil }
+        .onChange(of: model.mode) { leftSelection = nil; rightSelection = nil }
     }
 
     private var counts: String {

@@ -9,7 +9,7 @@ cd "$ROOT_DIR"
 
 build_arch() {
     local target_arch="$1"
-    local triple="$target_arch-apple-macosx13.0"
+    local triple="$target_arch-apple-macosx14.0"
     swift build -c release --triple "$triple" --product NsToolBox
     local bin_dir
     bin_dir="$(swift build -c release --triple "$triple" --show-bin-path)"

@@ -63,6 +63,6 @@ struct WorkspaceStatus: View {
         .padding(.horizontal, 8)
         .frame(height: WorkspaceStyle.statusHeight)
         .background(WorkspaceStyle.chrome)
-        .onChange(of: isError) { if !$0 { showDetails = false } }
+        .onChange(of: isError) { _, value in if !value { showDetails = false } }
     }
 }

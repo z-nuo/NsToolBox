@@ -11,7 +11,12 @@ struct StateTests {
         let application = NSApplication.shared
         application.setActivationPolicy(CommandLine.arguments.contains("--render") ? .regular : .accessory)
         Task { @MainActor in
-            do { try await runTests() }
+            do {
+                if let flag = CommandLine.arguments.firstIndex(of: "--image-termination-probe"),
+                   CommandLine.arguments.indices.contains(flag + 1) {
+                    try await imageTerminationProbe(directory: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
+                } else { try await runTests() }
+            }
             catch { print("ToolboxUITests failed:", error); exit(1) }
             application.stop(nil)
             application.postEvent(NSEvent.otherEvent(with: .applicationDefined, location: .zero,
@@ -22,6 +27,10 @@ struct StateTests {
 
     @MainActor
     static func runTests() async throws {
+        if CommandLine.arguments.contains("--image-previews-only") {
+            try await testImageBatch()
+            return
+        }
         let model = JSONToolModel()
         model.mode = .compare
         model.leftText = #"{"x":1}"#
@@ -53,6 +62,7 @@ struct StateTests {
         try testEditorStylingAndUndo()
         try testLineNumbersAndEditing()
         try await testModeAndInputRetention()
+        try await testImageBatch()
         try await renderPreviews()
         print("ToolboxUITests: state, debounce, errors, line numbers, styling and undo passed" + (CommandLine.arguments.contains("--render") ? "; native workflows passed" : ""))
     }
@@ -167,7 +177,15 @@ struct StateTests {
             try await waitUntil { editor("输入文本")?.string == "hello" }
             selectTool("JSON")
             try await waitUntil { editor("JSON 输入")?.string == #"{"saved":1}"# }
-            print("Native UI: category, top tabs, JSON/Base64/URL input/output and input retention passed")
+            let category = navigation.subviews[0]
+            func selectGroup(atTop y: CGFloat) {
+                click(category.convert(NSPoint(x: 64, y: category.isFlipped ? y : category.bounds.height - y), to: nil), in: window)
+            }
+            selectGroup(atTop: 84)
+            try await waitUntil { editor("JSON 输入") == nil }
+            selectGroup(atTop: 52)
+            try await waitUntil { editor("JSON 输入")?.string == #"{"saved":1}"# }
+            print("Native UI: category switching, top tabs, JSON/Base64/URL input/output and input retention passed")
         }
 
         let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
@@ -176,6 +194,7 @@ struct StateTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try bitmap.representation(using: .png, properties: [:])!.write(to: directory.appendingPathComponent(name + ".png"))
         precondition(bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0)
+        if name.hasPrefix("image-tools") { try assertImagePreviewColor(in: bitmap) }
         window.orderOut(nil)
     }
 

@@ -20,6 +20,7 @@
 从仓库根目录按变更范围执行：
 
 - 核心逻辑：`swift run ToolboxCoreTests`
+- 图片处理：`swift run ToolboxImageTests`
 - 状态与编辑器：`swift run ToolboxUITests`
 - 原生工作流与预览：`swift run ToolboxUITests --render`（需要登录图形会话）
 - Universal 2：`./scripts/build-app.sh`
