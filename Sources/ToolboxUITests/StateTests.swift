@@ -27,6 +27,10 @@ struct StateTests {
 
     @MainActor
     static func runTests() async throws {
+        if CommandLine.arguments.contains("--image-isolation-only") {
+            try await testImageOperationIsolation()
+            return
+        }
         if CommandLine.arguments.contains("--image-previews-only") {
             try await testImageBatch()
             return
@@ -63,6 +67,7 @@ struct StateTests {
         try testLineNumbersAndEditing()
         try await testModeAndInputRetention()
         try await testImageBatch()
+        try await testImageOperationIsolation()
         try await renderPreviews()
         print("ToolboxUITests: state, debounce, errors, line numbers, styling and undo passed" + (CommandLine.arguments.contains("--render") ? "; native workflows passed" : ""))
     }

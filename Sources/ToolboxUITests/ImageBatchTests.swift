@@ -56,7 +56,9 @@ extension StateTests {
         try makeImageFixture(at: source); try makeImageFixture(at: second)
         try Data("not an image".utf8).write(to: bad)
         let original = try Data(contentsOf: source)
-        let model = ImageBatchModel()
+        let workspace = ImageWorkspaceModel()
+        workspace.select(.resize)
+        let model = workspace.activeModel
         model.importURLs([source, source, bad, second])
         try await waitUntil { !model.isBusy }
         precondition(model.items.count == 3 && model.items.filter { $0.state == .failed }.count == 1)
@@ -94,9 +96,8 @@ extension StateTests {
         try await waitUntil { !model.isBusy }
         precondition(model.items[0].resultWidth == 50 && model.items[0].resultHeight == 25)
         if CommandLine.arguments.contains("--render") {
-            try await render(ImageToolView(model: model), name: "image-tools", size: NSSize(width: 780, height: 640))
-            model.selectedTool = .resize
-            try await render(ImageToolView(model: model), name: "image-tools-dark", size: NSSize(width: 780, height: 640), dark: true)
+            try await render(ImageWorkspaceView(workspace: workspace), name: "image-tools", size: NSSize(width: 780, height: 640))
+            try await render(ImageWorkspaceView(workspace: workspace), name: "image-tools-dark", size: NSSize(width: 780, height: 640), dark: true)
         }
         model.selection = model.items[0].id
         model.removeSelected()

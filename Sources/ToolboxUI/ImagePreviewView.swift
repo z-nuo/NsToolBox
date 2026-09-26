@@ -5,7 +5,6 @@ import ToolboxImages
 
 struct ImagePreviewView: View {
     let item: ImageBatchItem?
-    let format: ImageOutputFormat
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +38,7 @@ struct ImagePreviewView: View {
         guard let item, let width = item.resultWidth, let height = item.resultHeight, let count = item.resultBytes else {
             return "处理后显示尺寸与体积"
         }
-        var detail = "\(width) × \(height) px · \(format.rawValue)\n\(bytes(count))"
+        var detail = "\(width) × \(height) px · \(item.resultFormat?.rawValue ?? "")\n\(bytes(count))"
         if let original = item.info?.fileBytes, original > 0 {
             let change = (Double(count) / Double(original) - 1) * 100
             detail += "（\(change >= 0 ? "+" : "")\(Int(change.rounded()))%）"
@@ -52,7 +51,7 @@ struct ImagePreviewView: View {
         switch item.state {
         case .processing: return "正在处理…"
         case .failed: return "请查看下方错误原因"
-        default: return "点击「开始批量处理」生成结果"
+        default: return "使用上方操作按钮生成结果"
         }
     }
 

@@ -30,7 +30,7 @@ final class AppModel: ObservableObject {
 public struct ToolboxRootView: View {
     public init() {}
     @StateObject private var appModel = AppModel()
-    @StateObject private var imageModel = ImageBatchModel()
+    @StateObject private var imageModel = ImageWorkspaceModel()
     @StateObject private var jsonModel = JSONToolModel()
     @StateObject private var base64Model = EncodingToolModel(kind: .base64)
     @StateObject private var urlModel = EncodingToolModel(kind: .url)
@@ -64,7 +64,7 @@ public struct ToolboxRootView: View {
             .background(Color(nsColor: .windowBackgroundColor))
             Group {
                 if appModel.selectedGroup == .developer { developerWorkspace }
-                else { ImageToolView(model: imageModel) }
+                else { ImageWorkspaceView(workspace: imageModel) }
             }
             .frame(minWidth: 680, maxWidth: .infinity, maxHeight: .infinity)
         }

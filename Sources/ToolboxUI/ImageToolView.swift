@@ -3,8 +3,20 @@ import SwiftUI
 import ToolboxImages
 import UniformTypeIdentifiers
 
+struct ImageWorkspaceView: View {
+    @ObservedObject var workspace: ImageWorkspaceModel
+
+    var body: some View {
+        ImageToolView(model: workspace.activeModel, selectTool: workspace.select,
+                      useResult: workspace.useSelectedResult)
+            .id(workspace.selectedTool)
+    }
+}
+
 struct ImageToolView: View {
     @ObservedObject var model: ImageBatchModel
+    var selectTool: ((ImageToolRoute) -> Void)? = nil
+    var useResult: ((ImageToolRoute) -> Void)? = nil
     @State private var isDropTarget = false
 
     var body: some View {
@@ -14,14 +26,22 @@ struct ImageToolView: View {
             WorkspaceToolbar {
                 Button("添加图片…", systemImage: "plus", action: chooseImages)
                     .disabled(model.isBusy)
-                Text("PNG / JPG · 本地处理").foregroundStyle(.secondary)
                 Spacer(minLength: 8)
                 if model.isBusy {
                     Button(model.isCancelling ? "正在取消…" : "取消", action: model.cancel)
                         .disabled(model.isCancelling)
                 }
-                Button("开始批量处理", systemImage: "play.fill", action: model.processAll)
+                Button(model.tool.actionTitle, systemImage: "play.fill", action: model.processAll)
                     .disabled(!model.canProcess)
+                if let useResult {
+                    Menu("将此结果用于…") {
+                        ForEach(ImageToolRoute.allCases.filter { $0 != model.tool }) { tool in
+                            Button(tool.rawValue) { useResult(tool) }
+                        }
+                    }
+                    .disabled(model.isBusy || model.selectedItem?.resultURL == nil)
+                    .help("把选中图片的结果复制到另一个工具，随后手动开始处理")
+                }
                 Button("导出结果…", systemImage: "square.and.arrow.up", action: chooseExportDirectory)
                     .disabled(model.isBusy || !model.hasResults)
             }
@@ -30,9 +50,9 @@ struct ImageToolView: View {
                 .disabled(model.isBusy)
             Divider()
             HStack(spacing: 6) {
-                Image(systemName: "arrow.triangle.branch")
-                Text("处理流程：" + pipelineSummary)
-                    .lineLimit(2).help(pipelineSummary)
+                Image(systemName: "info.circle")
+                Text(operationSummary)
+                    .lineLimit(2).help(operationSummary)
                 Spacer(minLength: 0)
             }
             .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -42,7 +62,7 @@ struct ImageToolView: View {
             HStack(spacing: 0) {
                 queue.frame(width: 192)
                 Divider()
-                ImagePreviewView(item: model.selectedItem, format: model.options.format)
+                ImagePreviewView(item: model.selectedItem)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -72,19 +92,20 @@ struct ImageToolView: View {
     private var tabs: some View {
         HStack(spacing: 0) {
             ForEach(ImageToolRoute.allCases) { route in
-                Button { model.selectedTool = route } label: {
+                Button { selectTool?(route) } label: {
                     Text(route.rawValue)
-                        .font(.system(size: 12, weight: model.selectedTool == route ? .medium : .regular))
+                        .font(.system(size: 12, weight: model.tool == route ? .medium : .regular))
                         .frame(width: 104, height: WorkspaceStyle.tabHeight)
                         .contentShape(Rectangle())
-                        .background(model.selectedTool == route ? WorkspaceStyle.background : .clear)
+                        .background(model.tool == route ? WorkspaceStyle.background : .clear)
                         .overlay(alignment: .bottom) {
-                            if model.selectedTool == route { Color.accentColor.frame(height: 2) }
+                            if model.tool == route { Color.accentColor.frame(height: 2) }
                         }
                 }
                 .buttonStyle(.plain)
+                .disabled(model.isBusy)
                 .accessibilityIdentifier("image-tab-\(route.id)")
-                .accessibilityAddTraits(model.selectedTool == route ? [.isSelected] : [])
+                .accessibilityAddTraits(model.tool == route ? [.isSelected] : [])
             }
             Spacer(minLength: 0)
         }
@@ -93,30 +114,23 @@ struct ImageToolView: View {
 
     private var parameters: some View {
         VStack(alignment: .leading, spacing: 8) {
-            switch model.selectedTool {
+            switch model.tool {
             case .cutout:
                 Picker("主体识别", selection: $model.options.cutout) {
-                    ForEach(ImageCutoutMode.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach([ImageCutoutMode.foreground, .person]) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.segmented).frame(maxWidth: 440)
                 Text("使用 macOS 在本地识别主体；自动模式不可用时，可尝试人像抠图。")
                     .foregroundStyle(.secondary)
-                Text("识别效果取决于图片内容，无可用主体时会显示失败原因。")
+                Text("输出透明 PNG，保留原尺寸；无可用主体时显示失败原因。")
                     .foregroundStyle(.secondary)
             case .resize:
                 Picker("缩放方式", selection: $model.options.resize) {
                     ForEach(ImageResizeMode.allCases) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.segmented).frame(maxWidth: 440)
                 resizeParameters
+                Text("保留每张原图的文件格式，仅调整尺寸。").foregroundStyle(.secondary)
             case .format:
-                HStack(spacing: 12) {
-                    Picker("输出格式", selection: $model.options.format) {
-                        ForEach(ImageOutputFormat.allCases) { Text($0.rawValue).tag($0) }
-                    }.pickerStyle(.segmented).frame(width: 180)
-                    if model.options.format == .jpeg {
-                        ColorPicker("透明区域底色", selection: backgroundColor, supportsOpacity: false)
-                            .fixedSize()
-                    }
-                }
+                outputFormatPicker
                 Text(model.options.format == .png
                      ? "PNG 保留透明度，适合抠图后继续编辑。"
                      : "JPG 不支持透明度，透明区域将与所选底色合成。")
@@ -124,6 +138,7 @@ struct ImageToolView: View {
                 Text("导出使用原名加 _processed，重名自动编号，保留原文件。")
                     .foregroundStyle(.secondary)
             case .compress:
+                outputFormatPicker
                 HStack(spacing: 12) {
                     Text("JPG 质量")
                     Slider(value: $model.options.jpegQuality, in: 0.1...1, step: 0.01)
@@ -137,7 +152,7 @@ struct ImageToolView: View {
                     .foregroundStyle(.secondary)
                 Text(model.options.format == .jpeg
                      ? "以处理结果的实际体积为准。"
-                     : "如需调整有损压缩质量，请在「格式转换」中选择 JPG。")
+                     : "可在上方选择 JPG，再调整质量和透明区域底色。")
                     .foregroundStyle(.secondary)
             }
         }
@@ -180,7 +195,7 @@ struct ImageToolView: View {
     private var queue: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("图片列表").fontWeight(.medium)
+                Text(model.tool.rawValue + "图片").fontWeight(.medium)
                 Spacer()
                 Text("\(model.items.count)").foregroundStyle(.secondary)
             }
@@ -227,23 +242,25 @@ struct ImageToolView: View {
         }
     }
 
-    private var pipelineSummary: String {
-        let options = model.options
-        let resize: String
-        switch options.resize {
-        case .original: resize = "原始尺寸"
-        case .percentage: resize = "缩放 \(options.percentage.formatted())%"
-        case .dimensions:
-            resize = "\(options.width) × \(options.height) px（\(options.preserveAspect ? "等比适配" : "拉伸")）"
+    private var outputFormatPicker: some View {
+        HStack(spacing: 12) {
+            Picker("输出格式", selection: $model.options.format) {
+                ForEach(ImageOutputFormat.allCases) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).frame(width: 180)
+            if model.options.format == .jpeg {
+                ColorPicker("透明区域底色", selection: backgroundColor, supportsOpacity: false)
+                    .fixedSize()
+            }
         }
-        let encoding = options.format == .png ? "PNG · 保留透明度"
-            : "JPG · 质量 \(Int((options.jpegQuality * 100).rounded()))% · 底色 \(backgroundHex)"
-        return "\(options.cutout.rawValue) → \(resize) → \(encoding)"
     }
 
-    private var backgroundHex: String {
-        let color = model.options.background
-        return String(format: "#%02X%02X%02X", Int(color.red * 255), Int(color.green * 255), Int(color.blue * 255))
+    private var operationSummary: String {
+        switch model.tool {
+        case .cutout: return "仅抠图 · 输出透明 PNG · 不改变尺寸"
+        case .resize: return "仅调整尺寸 · 保留原格式 · 不执行抠图"
+        case .format: return "仅转换格式 · 保留原尺寸 · 不执行抠图"
+        case .compress: return "仅按当前格式和质量输出 · 保留原尺寸 · 不执行抠图"
+        }
     }
 
     private func chooseImages() {
