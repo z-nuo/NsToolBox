@@ -48,6 +48,7 @@
 | [NST-022](#nst-022) | 图片缓存 | 仅靠 deinit 无法保证退出清理 | 已解决 |
 | [NST-023](#nst-023) | 构建产物 | 中断后目录仍保留旧 macOS 13 应用 | 已解决 |
 | [NST-024](#nst-024) | 图片预览 | 深色模式结果间歇性呈现白块 | 已规避 |
+| [NST-025](#nst-025) | Git 远程 | 推送 GitHub 时本机代理端口不可连接 | 待定位 |
 
 ## 通用排查入口
 
@@ -488,3 +489,28 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 | 2026-09-26 | 真实窗口截图同样为白块 | 确认显示路径异常 |
 | 2026-09-26 | 原色修饰恢复；撤回后两次也通过 | 根因假设未证实，保留历史 |
 | 2026-09-26 | 改用立即解码 CGImage 与原色显示，增加像素断言 | 当前路径通过，已规避 |
+
+<a id="nst-025"></a>
+
+### NST-025 · 推送 GitHub 时本机代理端口不可连接
+
+- **发现 / 更新日期**：2026-09-26 / 2026-09-26。
+- **状态 / 来源**：待定位；实际 Git 推送错误。
+- **环境与影响**：macOS、Git HTTPS remote；当前功能分支已提交，首次推送远程失败。
+- **现象与复现**：执行 `git push -u origin codex/macos-developer-toolbox`，退出 128：`Failed to connect to 127.0.0.1 port 7897 after 0 ms: Couldn't connect to server`。
+- **定位与根因**：Git 用户级配置含 `http.https://github.com.proxy=http://127.0.0.1:7897`，该端口连接被拒绝。清除环境代理并仅覆盖通用 `http.proxy` 仍失败，因为 URL 专用配置仍生效；不能据此断言 GitHub 直连不可用。
+- **修复 / 尝试指南**：不修改全局配置，仅对当前命令清除环境代理，并覆盖 GitHub 专用代理：
+
+~~~sh
+env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy \
+  git -c http.https://github.com.proxy= -c http.proxy= push -u origin codex/macos-developer-toolbox
+~~~
+
+- **验证**：普通推送和仅覆盖通用代理均退出 128；URL 专用覆盖后推送持续无响应；独立 `curl --noproxy '*' --head --connect-timeout 10 --max-time 20 --silent --show-error https://github.com` 退出 28，报 GitHub 443 连接 10006 ms 后超时。随后主动终止本次挂起的 Git 推送；未获得远程更新成功证据。`git diff --check` 通过；仅文档修改，产品测试未执行。
+- **关联**：本条问题记录；待推送版本包含 `e8a8b7a` 与 `d330e77`，不修改应用代码。
+- **下一步**：核对实际推送退出码和远程 HEAD；若直连仍失败，恢复可用网络或启动已配置代理后重试，不强制推送。
+
+| 日期 | 操作或新证据 | 结果 |
+| --- | --- | --- |
+| 2026-09-26 | 普通推送及仅覆盖通用代理 | 均连接 127.0.0.1:7897 失败 |
+| 2026-09-26 | 确认 GitHub URL 专用代理，按 URL 覆盖重试 | 推送无响应，独立 HTTPS 直连超时；终止挂起推送，待网络恢复 |
