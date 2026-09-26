@@ -24,7 +24,7 @@ enum ToolGroup: String, CaseIterable, Identifiable {
 @MainActor
 final class AppModel: ObservableObject {
     @Published var selectedTool: ToolRoute = .json
-    @Published var selectedGroup: ToolGroup = .developer
+    @Published var selectedGroup: ToolGroup = .images
 }
 
 public struct ToolboxRootView: View {

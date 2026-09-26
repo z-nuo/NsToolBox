@@ -166,6 +166,13 @@ struct StateTests {
                     y: content.isFlipped ? 17 : content.bounds.height - 17), to: nil)
                 click(point, in: window)
             }
+            precondition(editor("JSON 输入") == nil, "A new window must open the image workspace")
+            let category = navigation.subviews[0]
+            func selectGroup(atTop y: CGFloat) {
+                click(category.convert(NSPoint(x: 64, y: category.isFlipped ? y : category.bounds.height - y), to: nil), in: window)
+            }
+            selectGroup(atTop: 52)
+            try await waitUntil { editor("JSON 输入") != nil }
             let jsonInput = editor("JSON 输入")!
             jsonInput.insertText(#"{"saved":1}"#, replacementRange: NSRange(location: 0, length: 0))
             try await waitUntil { editor("格式化结果")?.string.contains("saved") == true }
@@ -182,10 +189,6 @@ struct StateTests {
             try await waitUntil { editor("输入文本")?.string == "hello" }
             selectTool("JSON")
             try await waitUntil { editor("JSON 输入")?.string == #"{"saved":1}"# }
-            let category = navigation.subviews[0]
-            func selectGroup(atTop y: CGFloat) {
-                click(category.convert(NSPoint(x: 64, y: category.isFlipped ? y : category.bounds.height - y), to: nil), in: window)
-            }
             selectGroup(atTop: 84)
             try await waitUntil { editor("JSON 输入") == nil }
             selectGroup(atTop: 52)
