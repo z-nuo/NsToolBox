@@ -364,7 +364,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **定位与根因**：读取 Vision SDK 头文件确认可用性边界；不是单纯架构问题。
 - **修复指南**：用户确认最低 macOS 14，Package.swift、Info.plist、Xcode 两配置、构建脚本同步升级；保留原生 Vision 通用主体 / 人像两模式及明确错误。
 - **验证**：2026-09-25 当前 Intel / macOS 26.7 上图片测试通过，通用球体保留中心并去背景，人像样本可分割，空白图正确报告无主体。配置和产物复核见 [图片处理验证](../superpowers/validation/2026-09-26-image-tools.md)。Apple Silicon / macOS 14 实机未执行。
-- **关联**：[Package.swift](../../Package.swift)、[ImageProcessor.swift](../../Sources/ToolboxImages/ImageProcessor.swift)。实现随本次图片功能提交。
+- **关联**：[Package.swift](../../Package.swift)、[ImageProcessor.swift](../../Sources/ToolboxImages/ImageProcessor.swift)。实现提交：`e8a8b7a`。
 - **下一步**：补实机矩阵；API 版本声明不能代替所有硬件的实际推理验证。
 
 | 日期 | 操作或新证据 | 结果 |
@@ -384,7 +384,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **定位与根因**：头部与压缩像素内容不一致，样本不是合法的大图；不是产品资源检查失效。
 - **修复指南**：用 ImageIO 编码有效 8000 × 5001 灰度 PNG，再调用两个 API 断言资源限制；不要伪造头部代替有效编码。
 - **验证**：2026-09-25 `swift run ToolboxImageTests --vision-person build/fixtures/astronaut.png` 最后 10/10 组通过（退出 0），含 inspect / process 超限拒绝。
-- **关联**：[图片测试](../../Sources/ToolboxImageTests/main.swift)。实现随本次图片功能提交。
+- **关联**：[图片测试](../../Sources/ToolboxImageTests/main.swift)。实现提交：`e8a8b7a`。
 - **下一步**：继续使用有效样本测试资源边界，损坏文件单独测试。
 
 | 日期 | 操作或新证据 | 结果 |
@@ -403,7 +403,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **定位与根因**：旧单参数闭包在新最低版本下产生弃用诊断。
 - **修复指南**：JSON 选区清除改用零参数；状态控件用双参数读取新值，行为不变。
 - **验证**：2026-09-25 `swift run ToolboxUITests --render --capture` 重新编译无此警告；状态与模式切换断言通过，截图限制另见 NST-017。
-- **关联**：[JSONToolView.swift](../../Sources/ToolboxUI/JSONToolView.swift)、[WorkspaceStyle.swift](../../Sources/ToolboxUI/WorkspaceStyle.swift)。实现随本次图片功能提交。
+- **关联**：[JSONToolView.swift](../../Sources/ToolboxUI/JSONToolView.swift)、[WorkspaceStyle.swift](../../Sources/ToolboxUI/WorkspaceStyle.swift)。实现提交：`e8a8b7a`。
 - **下一步**：升级最低版本时检查编译诊断，保留现有交互回归。
 
 | 日期 | 操作或新证据 | 结果 |
@@ -422,7 +422,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **定位与根因**：编码格式无损不代表之前的位深及色彩空间转换无损。
 - **修复指南**：输入输出均 PNG、无抠图、尺寸不变、方向正常时保留原始字节，独立生成预览；实际像素变换仍输出 8 位 sRGB，文档明确说明。UI 不再笼统承诺 PNG 无损重编码。
 - **验证**：2026-09-25 图片测试 10/10 组通过，新增 16 位 Display P3 样本检查原字节与位深一致，覆盖原尺寸、100% 和相同尺寸参数；EXIF 镜像仍通过。
-- **关联**：[ImageProcessor.swift](../../Sources/ToolboxImages/ImageProcessor.swift)、[图片测试](../../Sources/ToolboxImageTests/main.swift)。实现随本次图片功能提交。
+- **关联**：[ImageProcessor.swift](../../Sources/ToolboxImages/ImageProcessor.swift)、[图片测试](../../Sources/ToolboxImageTests/main.swift)。实现提交：`e8a8b7a`。
 - **下一步**：若扩展专业图像工作流，另行实现全管线高位深及色彩管理。
 
 | 日期 | 操作或新证据 | 结果 |
@@ -441,7 +441,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **定位与根因**：模型生命周期与进程终止不是同一保证；没有明确终止钩子。
 - **修复指南**：监听 NSApplication.willTerminateNotification，取消任务、同步等待当前后台系统操作结束，再删除当前模型会话目录；不删除其他会话或用户导出的文件。正常退出可能等待当前图处理完成。
 - **验证**：2026-09-25 UI 测试同时检查通知清理与子进程真实 `NSApp.terminate`：保持模型存活、记录缓存路径，退出码 0 后父进程确认目录不存在；通过。人工 Cmd-Q / 强制退出未执行，后者不承诺清理。
-- **关联**：[ImageBatchModel.swift](../../Sources/ToolboxUI/ImageBatchModel.swift)、[ImageBatchTests.swift](../../Sources/ToolboxUITests/ImageBatchTests.swift)。实现随本次图片功能提交。
+- **关联**：[ImageBatchModel.swift](../../Sources/ToolboxUI/ImageBatchModel.swift)、[ImageBatchTests.swift](../../Sources/ToolboxUITests/ImageBatchTests.swift)。实现提交：`e8a8b7a`。
 - **下一步**：保留实际 AppKit 退出回归；如需崩溃恢复清理，需单独设计跨实例安全策略。
 
 | 日期 | 操作或新证据 | 结果 |
@@ -479,7 +479,7 @@ stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' build/NsToolBox.app
 - **定位证据与假设**：输出编码和浅色预览正常，异常出现在显示路径。添加 renderingMode(.original) 后恢复；撤回此修改后两次运行也通过，故“模板着色导致”仅是假设，不能视为已确认根因。没有得到稳定的旧实现红绿失败测试。
 - **规避指南**：移除 NSImage 的表示选择路径，使用 ImageIO 立即解码受限缩略图为 CGImage，SwiftUI 明确按原图像素绘制；增加浅深色结果区域蓝色像素断言。单张预览仍限定 1000 像素。
 - **验证**：修正后 `swift run ToolboxUITests --render --capture` 检查原图与结果的真实窗口；像素断言与最后运行结果见 [验证记录](../superpowers/validation/2026-09-26-image-tools.md)。最初单纯添加原色修饰后截图正常，但不将相关性当作根因证明。
-- **关联**：[ImagePreviewView.swift](../../Sources/ToolboxUI/ImagePreviewView.swift)、[ImageBatchTests.swift](../../Sources/ToolboxUITests/ImageBatchTests.swift)、[NST-017](#nst-017)。规避随本次图片功能提交。
+- **关联**：[ImagePreviewView.swift](../../Sources/ToolboxUI/ImagePreviewView.swift)、[ImageBatchTests.swift](../../Sources/ToolboxUITests/ImageBatchTests.swift)、[NST-017](#nst-017)。规避提交：`e8a8b7a`。
 - **下一步**：保留像素回归及真实窗口检查；如再次出现，保存实际缩略图与渲染状态，继续定位系统图像表示/绘制行为。
 
 | 日期 | 操作或新证据 | 结果 |
