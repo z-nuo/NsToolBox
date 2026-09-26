@@ -68,6 +68,9 @@ struct StateTests {
         try await testModeAndInputRetention()
         try await testImageBatch()
         try await testImageOperationIsolation()
+        try await testPhaseOneUtilityState()
+        try testRenameState()
+        try await testImageEditingSessions()
         try await renderPreviews()
         print("ToolboxUITests: state, debounce, errors, line numbers, styling and undo passed" + (CommandLine.arguments.contains("--render") ? "; native workflows passed" : ""))
     }
@@ -108,6 +111,7 @@ struct StateTests {
     @MainActor
     static func renderPreviews() async throws {
         guard CommandLine.arguments.contains("--render") else { return }
+        try await renderPhaseOnePreviews()
         try await testWorkspaceInteraction()
         let model = JSONToolModel()
         model.mode = .compare
@@ -193,7 +197,33 @@ struct StateTests {
             try await waitUntil { editor("JSON 输入") == nil }
             selectGroup(atTop: 52)
             try await waitUntil { editor("JSON 输入")?.string == #"{"saved":1}"# }
-            print("Native UI: category switching, top tabs, JSON/Base64/URL input/output and input retention passed")
+            selectTool("UUID")
+            try await waitUntil { editor("UUID v4 结果") != nil }
+            precondition(editor("UUID v4 结果")?.isEditable == false)
+            selectTool("哈希")
+            try await waitUntil { editor("SHA-256 摘要") != nil }
+            editor("输入文本")!.insertText("abc", replacementRange: NSRange(location: 0, length: 0))
+            try await waitUntil { editor("SHA-256 摘要")?.string == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" }
+            selectTool("时间戳")
+            try await waitUntil { editor("SHA-256 摘要") == nil }
+            selectTool("哈希")
+            try await waitUntil { editor("输入文本")?.string == "abc" }
+            selectGroup(atTop: 116)
+            try await waitUntil { editor("左侧 · 原文本") != nil }
+            editor("左侧 · 原文本")!.insertText("old", replacementRange: NSRange(location: 0, length: 0))
+            editor("右侧 · 对比文本")!.insertText("new", replacementRange: NSRange(location: 0, length: 0))
+            try await waitUntil {
+                editor("左侧 · 原文本")?.layoutManager?.temporaryAttribute(.backgroundColor, atCharacterIndex: 0, effectiveRange: nil) != nil
+            }
+            selectGroup(atTop: 148)
+            try await waitUntil { editor("左侧 · 原文本") == nil }
+            selectGroup(atTop: 116)
+            try await waitUntil { editor("左侧 · 原文本")?.string == "old" && editor("右侧 · 对比文本")?.string == "new" }
+            selectGroup(atTop: 52)
+            try await waitUntil { editor("输入文本")?.string == "abc" }
+            selectTool("JSON")
+            try await waitUntil { editor("JSON 输入")?.string == #"{"saved":1}"# }
+            print("Native UI: all categories, developer tabs, text highlights and cross-tool input retention passed")
         }
 
         let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)!

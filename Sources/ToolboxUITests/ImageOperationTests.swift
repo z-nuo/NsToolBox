@@ -37,6 +37,10 @@ extension StateTests {
         defer { window?.orderOut(nil) }
         func select(_ route: ImageToolRoute) async throws {
             if let window, let host = window.contentView {
+                // A model finishing its job precedes SwiftUI applying the enabled state.
+                // Let the hosting view commit that update before sending a real click.
+                try await Task.sleep(nanoseconds: 100_000_000)
+                host.layoutSubtreeIfNeeded()
                 let index = ImageToolRoute.allCases.firstIndex(of: route)!
                 click(host.convert(NSPoint(x: CGFloat(index) * 104 + 52,
                                            y: host.isFlipped ? 17 : host.bounds.height - 17), to: nil), in: window)
