@@ -51,7 +51,8 @@ public enum ImageProcessor {
             }
             // ImageIO applies EXIF orientation before Vision, resizing and export.
             let original = try input.decode(maxDimension: max(input.width, input.height))
-            let image = options.cutout == .none ? original : try removeBackground(original, mode: options.cutout)
+            let image = options.cutout == .none ? original : try removeBackground(original, mode: options.cutout,
+                                                                                 whiteTolerance: options.whiteTolerance)
             let rendered = try render(image, width: size.width, height: size.height,
                                       background: options.format == .jpeg ? options.background : nil)
             let data = try encode(rendered, format: options.format, quality: options.jpegQuality)
@@ -174,7 +175,37 @@ public enum ImageProcessor {
         return data as Data
     }
 
-    private static func removeBackground(_ image: CGImage, mode: ImageCutoutMode) throws -> CGImage {
+    private static func removeWhiteBackground(_ image: CGImage, tolerance: Double) throws -> CGImage {
+        guard tolerance.isFinite, (0...0.3).contains(tolerance) else {
+            throw ProcessingError("去白底容差必须在 0% 到 30% 之间。")
+        }
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: image.width, height: image.height,
+                                      bitsPerComponent: 8, bytesPerRow: image.width * 4, space: colorSpace,
+                                      bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = context.data else { throw ProcessingError("无法分配去白底内存，请降低图片尺寸。") }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let pixels = data.assumingMemoryBound(to: UInt8.self)
+        for offset in stride(from: 0, to: image.width * image.height * 4, by: 4) {
+            let alpha = Double(pixels[offset + 3])
+            guard alpha > 0 else { continue }
+            let darkest = Double(min(pixels[offset], pixels[offset + 1], pixels[offset + 2])) / alpha
+            let distance = 1 - darkest
+            let mask = min(1, max(0, (distance - tolerance) / 0.05))
+            guard mask < 1 else { continue }
+            // Remove the white matte from premultiplied colors as alpha is reduced.
+            // This retains existing alpha and avoids baking white into the soft edge.
+            let white = (1 - mask) * alpha
+            for channel in 0..<3 {
+                pixels[offset + channel] = UInt8(max(0, Double(pixels[offset + channel]) - white).rounded())
+            }
+            pixels[offset + 3] = UInt8((alpha * mask).rounded())
+        }
+        guard let result = context.makeImage() else { throw ProcessingError("无法生成去白底结果。") }
+        return result
+    }
+
+    private static func removeBackground(_ image: CGImage, mode: ImageCutoutMode, whiteTolerance: Double) throws -> CGImage {
         let handler = VNImageRequestHandler(cgImage: image, orientation: .up, options: [:])
         let mask: CVPixelBuffer
         do {
@@ -183,7 +214,7 @@ public enum ImageProcessor {
                 let request = VNGenerateForegroundInstanceMaskRequest()
                 try handler.perform([request])
                 guard let result = request.results?.first, !result.allInstances.isEmpty else {
-                    throw ProcessingError("未检测到可分离的主体，请尝试其他图片或人像模式。")
+                    throw ProcessingError("未检测到可分离的主体。白底文字或图标请尝试「去白底」，人物照片可尝试人像模式。")
                 }
                 mask = try result.generateScaledMaskForImage(forInstances: result.allInstances, from: handler)
             case .person:
@@ -193,6 +224,7 @@ public enum ImageProcessor {
                 try handler.perform([request])
                 guard let result = request.results?.first else { throw ProcessingError("未检测到人像，请尝试更清晰的人像图片。") }
                 mask = result.pixelBuffer
+            case .whiteBackground: return try removeWhiteBackground(image, tolerance: whiteTolerance)
             case .none: return image
             }
         } catch let error as ProcessingError { throw error }

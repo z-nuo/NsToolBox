@@ -160,6 +160,29 @@ func testAlphaAndJPEG() throws {
     let halfBytes = rgba(try decode(halfPNG.data))
     try expect(abs(Int(halfBytes[3]) - 128) <= 1, "半透明 alpha 必须保留")
 }
+func testWhiteBackground() throws {
+    let colors: [[UInt8]] = [[255,255,255,255], [255,240,160,255], [120,20,100,255],
+                            [248,248,248,255], [235,235,235,255], [255,0,0,128], [0,0,0,0]]
+    let url = try fixture("white-artwork.png", width: colors.count, height: 2, pixel: { x, _ in colors[x] })
+    var options = ImageProcessingOptions(); options.cutout = .whiteBackground
+    let result = try ImageProcessor.process(url: url, options: options)
+    let bytes = rgba(try decode(result.data))
+    try expect(bytes[3] == 0 && bytes[3 * 4 + 3] == 0, "白底与近白背景应真正透明")
+    try expect(bytes[1 * 4 + 3] == 255 && bytes[2 * 4 + 3] == 255, "淡黄色描边与彩色主体应保留")
+    try expect(abs(Int(bytes[1 * 4 + 2]) - 160) <= 2, "去白底不应改变保留的彩色像素")
+    try expect(bytes[4 * 4 + 3] > 0 && bytes[4 * 4 + 3] < 255, "去白底边界应保留软过渡")
+    let recomposited = Int(bytes[4 * 4]) + 255 - Int(bytes[4 * 4 + 3])
+    try expect(abs(recomposited - 235) <= 2, "软边去白底后叠回白底应还原原色")
+    try expect(abs(Int(bytes[5 * 4 + 3]) - 128) <= 1 && bytes[6 * 4 + 3] == 0, "已有透明度应保留")
+    options.whiteTolerance = 0.1
+    let stronger = rgba(try decode(ImageProcessor.process(url: url, options: options).data))
+    try expect(stronger[4 * 4 + 3] == 0, "增大容差应去除更多近白色")
+    for invalid in [Double.nan, -0.1, 1.1] {
+        options.whiteTolerance = invalid
+        try expectError("容差") { _ = try ImageProcessor.process(url: url, options: options) }
+    }
+}
+
 func testQuality() throws {
     let url = try fixture("noise.png", width: 256, height: 256, pixel: { x, y in
         [UInt8((x * 71 + y * 131) % 256), UInt8((x * 13 + y * 29) % 256), UInt8((x * y + x * 53) % 256), 255]
@@ -241,7 +264,7 @@ func probeVision() throws {
 }
 var tests: [(String, () throws -> Void)] = [
     ("识别、缩略图与 EXIF 方向", testInspectAndOrientation), ("PNG 原始精度保留", testPNGPreservesOriginalPrecision), ("EXIF 镜像", testMirroredOrientation), ("比例与精确缩放", testResize),
-    ("透明度与 JPG 底色", testAlphaAndJPEG), ("JPG 质量", testQuality),
+    ("透明度与 JPG 底色", testAlphaAndJPEG), ("去白底与软边透明度", testWhiteBackground), ("JPG 质量", testQuality),
     ("格式、非法参数与资源限制", testInvalidAndLimits), ("本机 Vision 空白图探测", probeVision), ("本机 Vision 主体探测", probeForegroundSubject)
 ]
 if let argumentIndex = CommandLine.arguments.firstIndex(of: "--vision-person") {

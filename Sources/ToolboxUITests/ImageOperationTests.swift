@@ -118,6 +118,28 @@ extension StateTests {
         guard compressor.items.count == 2, compressor.selectedItem?.info?.width == 128 else {
             throw isolationError("A regenerated result must import as a new snapshot and become selected")
         }
+        try await select(.cutout)
+        let gray = directory.appendingPathComponent("light-gray.png")
+        context.setFillColor(CGColor(gray: 0.85, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 512, height: 512))
+        let grayOutput = CGImageDestinationCreateWithURL(gray as CFURL, UTType.png.identifier as CFString, 1, nil)!
+        CGImageDestinationAddImage(grayOutput, context.makeImage()!, nil)
+        precondition(CGImageDestinationFinalize(grayOutput))
+        model.importURLs([gray])
+        try await waitUntil { !model.isBusy }
+        model.selection = model.items.last!.id
+        model.options.cutout = .whiteBackground
+        model.options.whiteTolerance = 0.2
+        model.processAll()
+        try await waitUntil { !model.isBusy }
+        guard let data = model.selectedItem?.resultURL.flatMap({ try? Data(contentsOf: $0) }),
+              let bitmap = NSBitmapImageRep(data: data), bitmap.colorAt(x: 0, y: 0)?.alphaComponent == 0 else {
+            throw isolationError("Cutout must apply the selected white tolerance and export real transparency")
+        }
+        if CommandLine.arguments.contains("--render") {
+            try await render(ImageWorkspaceView(workspace: workspace), name: "white-background-tool",
+                             size: NSSize(width: 780, height: 640))
+        }
         print("Image operation isolation: failed cutout then format, independent state, explicit snapshots, resize and compression passed")
     }
 

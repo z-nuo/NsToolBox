@@ -116,13 +116,25 @@ struct ImageToolView: View {
         VStack(alignment: .leading, spacing: 8) {
             switch model.tool {
             case .cutout:
-                Picker("主体识别", selection: $model.options.cutout) {
-                    ForEach([ImageCutoutMode.foreground, .person]) { Text($0.rawValue).tag($0) }
+                Picker("去背景方式", selection: $model.options.cutout) {
+                    ForEach([ImageCutoutMode.foreground, .person, .whiteBackground]) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.segmented).frame(maxWidth: 440)
-                Text("使用 macOS 在本地识别主体；自动模式不可用时，可尝试人像抠图。")
-                    .foregroundStyle(.secondary)
-                Text("输出透明 PNG，保留原尺寸；无可用主体时显示失败原因。")
-                    .foregroundStyle(.secondary)
+                if model.options.cutout == .whiteBackground {
+                    HStack(spacing: 12) {
+                        Text("白色容差")
+                        Slider(value: $model.options.whiteTolerance, in: 0...0.3, step: 0.01)
+                            .frame(width: 220).accessibilityLabel("去白底容差")
+                        Text("\(Int((model.options.whiteTolerance * 100).rounded()))%")
+                            .monospacedDigit().frame(width: 36, alignment: .trailing)
+                    }
+                    Text("适合白底文字、图标；容差越大，去除的浅色越多，主体中的白色也会被去除。")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("照片使用自动去背景或人像抠图；白底文字、图标可选择「去白底」。")
+                        .foregroundStyle(.secondary)
+                    Text("输出透明 PNG，保留原尺寸；无可用主体时显示失败原因。")
+                        .foregroundStyle(.secondary)
+                }
             case .resize:
                 Picker("缩放方式", selection: $model.options.resize) {
                     ForEach(ImageResizeMode.allCases) { Text($0.rawValue).tag($0) }
@@ -132,10 +144,10 @@ struct ImageToolView: View {
             case .format:
                 outputFormatPicker
                 Text(model.options.format == .png
-                     ? "PNG 保留透明度，适合抠图后继续编辑。"
+                     ? "PNG 支持透明，但格式转换会保留原背景，不会自动去底。"
                      : "JPG 不支持透明度，透明区域将与所选底色合成。")
                     .foregroundStyle(.secondary)
-                Text("导出使用原名加 _processed，重名自动编号，保留原文件。")
+                Text("需要透明背景请使用「抠图」；白底文字、图标选择「去白底」。")
                     .foregroundStyle(.secondary)
             case .compress:
                 outputFormatPicker

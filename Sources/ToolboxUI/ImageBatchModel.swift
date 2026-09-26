@@ -20,6 +20,7 @@ enum ImageToolRoute: String, CaseIterable, Identifiable {
         switch self {
         case .cutout:
             result.cutout = options.cutout
+            result.whiteTolerance = options.whiteTolerance
             result.format = .png
         case .resize:
             result.resize = options.resize

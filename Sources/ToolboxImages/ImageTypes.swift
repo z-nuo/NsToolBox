@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ImageCutoutMode: String, CaseIterable, Identifiable, Sendable {
-    case none = "不抠图", foreground = "自动去背景", person = "人像抠图"
+    case none = "不抠图", foreground = "自动去背景", person = "人像抠图", whiteBackground = "去白底"
     public var id: String { rawValue }
 }
 
@@ -27,6 +27,7 @@ public struct ImageBackground: Sendable, Equatable {
 
 public struct ImageProcessingOptions: Sendable, Equatable {
     public var cutout: ImageCutoutMode = .none
+    public var whiteTolerance: Double = 0.05
     public var resize: ImageResizeMode = .original
     public var percentage: Double = 100
     public var width: Int = 1024
