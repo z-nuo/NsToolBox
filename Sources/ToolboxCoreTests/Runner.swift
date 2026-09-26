@@ -15,7 +15,9 @@ struct CoreTestRunner {
         try testDiffRangesAndSpecialPaths()
         try testArrayAndRootDifferences()
         try testHugeExponentsAndPreciseIntegers()
-        print("ToolboxCoreTests: 11 groups passed")
+        try testPhaseOneUtilities()
+        try testBatchRename()
+        print("ToolboxCoreTests: original 11 groups and phase-one utilities/rename passed")
     }
 
     static func check(_ condition: Bool, _ message: String) {
