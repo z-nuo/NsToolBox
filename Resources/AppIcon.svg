@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>大乱炖 · NsToolBox</title>
+  <desc>A navy enamel pot simmering colorful code and link symbols. Original vector app icon for NsToolBox.</desc>
+  <defs>
+    <linearGradient id="tile" x1="240" y1="100" x2="790" y2="940" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF9EE"/><stop offset=".58" stop-color="#F8E7D1"/><stop offset="1" stop-color="#EBCFAF"/>
+    </linearGradient>
+    <linearGradient id="pot" x1="300" y1="504" x2="707" y2="827" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#304F71"/><stop offset=".55" stop-color="#17334F"/><stop offset="1" stop-color="#10263D"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="310" y1="419" x2="688" y2="590" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#617F95"/><stop offset=".5" stop-color="#294A65"/><stop offset="1" stop-color="#18334D"/>
+    </linearGradient>
+    <linearGradient id="broth" x1="512" y1="431" x2="512" y2="553" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EF793D"/><stop offset="1" stop-color="#FFC36A"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="-80" y1="-80" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BBF0D8"/><stop offset="1" stop-color="#63C6AB"/>
+    </linearGradient>
+    <linearGradient id="coral" x1="-80" y1="-80" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFAB86"/><stop offset="1" stop-color="#EE7059"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="-80" y1="-80" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFDE88"/><stop offset="1" stop-color="#F3B748"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="285" y1="567" x2="386" y2="768" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A3C3DC" stop-opacity=".46"/><stop offset="1" stop-color="#A3C3DC" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="tileShadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="13"/>
+    </filter>
+    <filter id="potShadow" x="120" y="680" width="790" height="240" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="21"/>
+    </filter>
+    <filter id="cardShadow" x="-125" y="-125" width="250" height="280" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="9" stdDeviation="6" flood-color="#714725" flood-opacity=".20"/>
+    </filter>
+  </defs>
+  <!-- A transparent canvas and inset rounded-square silhouette suit the Dock. -->
+  <rect x="98" y="108" width="828" height="828" rx="185" fill="#593F2A" opacity=".20" filter="url(#tileShadow)"/>
+  <rect x="96" y="96" width="832" height="832" rx="184" fill="url(#tile)"/>
+  <rect x="99" y="99" width="826" height="826" rx="181" stroke="#FFFFFF" stroke-opacity=".75" stroke-width="4"/>
+  <path d="M178 290C178 227 228 178 290 178" stroke="#FFFFFF" stroke-opacity=".46" stroke-width="13" stroke-linecap="round"/>
+  <ellipse cx="515" cy="806" rx="258" ry="34" fill="#644E3B" opacity=".24" filter="url(#potShadow)"/>
+  <!-- Steam echoes the flowing shape of code braces. -->
+  <path d="M367 307C340 282 393 270 375 235" stroke="#C69469" stroke-opacity=".48" stroke-width="16" stroke-linecap="round"/>
+  <path d="M655 297C632 272 681 248 662 217" stroke="#C69469" stroke-opacity=".48" stroke-width="16" stroke-linecap="round"/>
+  <!-- Wide handles remain recognizable at small sizes. -->
+  <path d="M287 524H217C180 524 178 573 211 586L282 603" stroke="#18354F" stroke-width="35" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M737 524H807C844 524 846 573 813 586L742 603" stroke="#18354F" stroke-width="35" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M270 524H218" stroke="#6B899D" stroke-opacity=".70" stroke-width="9" stroke-linecap="round"/>
+  <path d="M754 524H806" stroke="#6B899D" stroke-opacity=".55" stroke-width="9" stroke-linecap="round"/>
+  <!-- Pot silhouette and warm surface. -->
+  <path d="M254 488H770L742 695C729 782 646 821 512 821C378 821 295 782 282 695L254 488Z" fill="url(#pot)"/>
+  <ellipse cx="512" cy="485" rx="260" ry="102" fill="url(#rim)"/>
+  <ellipse cx="512" cy="480" rx="235" ry="77" fill="#132D45"/>
+  <ellipse cx="512" cy="488" rx="224" ry="64" fill="url(#broth)"/>
+  <path d="M314 485C357 453 423 442 461 443" stroke="#FFD999" stroke-width="10" stroke-linecap="round" opacity=".78"/>
+  <!-- Three chunky, font-independent ingredient tiles: JSON, code, URL. -->
+  <g transform="translate(361 409) rotate(-17)" filter="url(#cardShadow)">
+    <rect x="-72" y="-73" width="144" height="148" rx="33" fill="url(#mint)"/>
+    <path d="M-40-57H28" stroke="#E4FFF0" stroke-opacity=".72" stroke-width="6" stroke-linecap="round"/>
+    <path d="M-19-32C-38-32-31-15-35-7C-38-2-43 0-47 0C-43 0-38 2-35 7C-31 15-38 32-19 32M19-32C38-32 31-15 35-7C38-2 43 0 47 0C43 0 38 2 35 7C31 15 38 32 19 32" stroke="#1F4D4A" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(517 324) rotate(9)" filter="url(#cardShadow)">
+    <rect x="-76" y="-76" width="152" height="152" rx="35" fill="url(#gold)"/>
+    <path d="M-43-59H27" stroke="#FFF1BB" stroke-opacity=".82" stroke-width="6" stroke-linecap="round"/>
+    <path d="M-26-22L-48 0L-26 22M26-22L48 0L26 22M9-29L-9 29" stroke="#6D461E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(669 423) rotate(18)" filter="url(#cardShadow)">
+    <rect x="-71" y="-72" width="142" height="144" rx="32" fill="url(#coral)"/>
+    <path d="M-39-55H26" stroke="#FFD5B7" stroke-opacity=".72" stroke-width="6" stroke-linecap="round"/>
+    <g transform="rotate(-40)">
+      <rect x="-49" y="-22" width="64" height="44" rx="22" stroke="#76392E" stroke-width="10"/>
+      <rect x="-13" y="-22" width="64" height="44" rx="22" stroke="#76392E" stroke-width="10"/>
+    </g>
+  </g>
+  <!-- The near rim masks the bottoms of the ingredients. -->
+  <path d="M256 501C291 555 394 584 512 584C630 584 733 555 768 501L742 695C729 782 646 821 512 821C378 821 295 782 282 695L256 501Z" fill="url(#pot)"/>
+  <path d="M267 527C320 571 409 594 512 594C615 594 704 571 757 527" stroke="#54768F" stroke-width="12" stroke-linecap="round"/>
+  <path d="M303 584L321 687C328 726 345 748 374 763" stroke="url(#shine)" stroke-width="21" stroke-linecap="round"/>
+  <!-- A simple warm simmer mark gives the large blue body a focal point. -->
+  <path d="M502 640C524 660 478 674 493 695C501 705 518 704 523 694C534 674 550 681 550 700C550 724 534 740 512 740C486 740 469 722 471 701C473 676 501 664 502 640Z" fill="#F7C376"/>
+  <path d="M489 789C531 795 583 788 615 777" stroke="#081E32" stroke-opacity=".24" stroke-width="8" stroke-linecap="round"/>
+</svg>

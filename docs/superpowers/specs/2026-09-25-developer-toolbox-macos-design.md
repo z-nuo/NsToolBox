@@ -1,5 +1,7 @@
 # NsToolBox macOS 开发者工具箱设计
 
+本文件保留首版设计历史。界面导航与布局已由 [紧凑工作区规划](2026-09-25-compact-workspace-design.md) 替代，其余核心功能与平台约束继续适用。
+
 ## 1. 目标
 
 将 NsToolBox 开发为原生 macOS 应用，首版提供开发者常用的 JSON、Base64 和 URL 工具。
@@ -24,7 +26,7 @@
 
 - SwiftUI：应用窗口、侧边栏、页面路由、工具状态和操作按钮。
 - `NSViewRepresentable`：封装 `NSTextView`，提供等宽字体、语法着色和差异高亮。
-- Foundation：JSON、Base64、URL 编解码和剪贴板相关能力。
+- Foundation：JSON、Base64、URL 编解码；AppKit：剪贴板。
 - Xcode：构建 macOS Universal 2 应用。
 - 首版不引入第三方依赖。
 
@@ -71,10 +73,12 @@ NsToolBoxApp
 object([String: JSONValue])
 array([JSONValue])
 string(String)
-number(Decimal)
+number(JSONNumber)
 bool(Bool)
 null
 ```
+
+实现精度说明：JSONNumber 保留原始数字词法文本，使用精确十进制规范化进行比较，避免 Decimal 的范围与精度限制改变输入值。
 
 四项 JSON 功能共用同一套解析和序列化逻辑：
 
