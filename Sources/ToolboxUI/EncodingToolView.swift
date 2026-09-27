@@ -10,7 +10,7 @@ struct EncodingToolView: View {
                 Picker("操作", selection: $model.isDecoding) {
                     Text("编码").tag(false)
                     Text("解码").tag(true)
-                }.pickerStyle(.segmented).frame(width: 160)
+                }.pickerStyle(.segmented).tint(WorkspaceStyle.accent).frame(width: 160)
                 Spacer()
                 Image(systemName: "questionmark.circle")
                     .foregroundStyle(.secondary)

@@ -34,16 +34,28 @@ struct ImageToolView: View {
                 }
                 if model.tool != .info {
                     Button(model.tool.actionTitle, systemImage: "play.fill", action: model.processAll)
+                        .buttonStyle(.borderedProminent)
+                        .tint(WorkspaceStyle.accent)
                         .disabled(!model.canProcess)
                 }
                 if let useResult, model.tool != .info {
-                    Menu("将此结果用于…") {
-                        ForEach(ImageToolRoute.allCases.filter { $0 != model.tool }) { tool in
-                            Button(tool.rawValue) { useResult(tool) }
+                    if !model.isBusy && model.selectedItem?.resultURL != nil {
+                        Menu {
+                            ForEach(ImageToolRoute.allCases.filter { $0 != model.tool }) { tool in
+                                Button(tool.rawValue) { useResult(tool) }
+                            }
+                        } label: {
+                            Label("继续处理", systemImage: "arrowshape.turn.up.right")
+                                .foregroundStyle(.primary)
                         }
+                        .frame(width: 124)
+                        .help("把选中图片的结果复制到另一个工具，随后手动开始处理")
+                    } else {
+                        Label("继续处理", systemImage: "arrowshape.turn.up.right")
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 124, height: 24)
+                            .accessibilityLabel("继续处理：需要选中处理结果")
                     }
-                    .disabled(model.isBusy || model.selectedItem?.resultURL == nil)
-                    .help("把选中图片的结果复制到另一个工具，随后手动开始处理")
                 }
                 if model.tool != .info {
                     Button("导出结果…", systemImage: "square.and.arrow.up", action: chooseExportDirectory)
@@ -54,18 +66,8 @@ struct ImageToolView: View {
             parameters
                 .disabled(model.isBusy)
             Divider()
-            HStack(spacing: 6) {
-                Image(systemName: "info.circle")
-                Text(operationSummary)
-                    .lineLimit(2).help(operationSummary)
-                Spacer(minLength: 0)
-            }
-            .font(.system(size: 11)).foregroundStyle(.secondary)
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(WorkspaceStyle.chrome)
-            Divider()
             HStack(spacing: 0) {
-                queue.frame(width: 192)
+                queue.frame(width: 184)
                 Divider()
                 if model.tool == .info {
                     ImageInformationView(item: model.selectedItem)
@@ -79,8 +81,8 @@ struct ImageToolView: View {
             .overlay {
                 if isDropTarget && !model.isBusy {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.accentColor.opacity(0.08))
-                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.accentColor, lineWidth: 2))
+                        .fill(WorkspaceStyle.accent.opacity(0.08))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(WorkspaceStyle.accent, lineWidth: 2))
                         .allowsHitTesting(false)
                 }
             }
@@ -107,29 +109,32 @@ struct ImageToolView: View {
                 Button { selectTool?(route) } label: {
                     Text(route.rawValue)
                         .font(.system(size: 12, weight: model.tool == route ? .medium : .regular))
-                        .frame(width: 104, height: WorkspaceStyle.tabHeight)
+                        .frame(width: 100, height: 28)
                         .contentShape(Rectangle())
-                        .background(model.tool == route ? WorkspaceStyle.background : .clear)
-                        .overlay(alignment: .bottom) {
-                            if model.tool == route { Color.accentColor.frame(height: 2) }
-                        }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(WorkspaceNavigationButtonStyle(isSelected: model.tool == route))
+                .frame(width: 104, height: WorkspaceStyle.tabHeight)
                 .disabled(model.isBusy)
                 .accessibilityIdentifier("image-tab-\(route.id)")
                 .accessibilityAddTraits(model.tool == route ? [.isSelected] : [])
+                .help(route == model.tool ? operationSummary : "切换到\(route.rawValue)")
             }
         }}
         .background(WorkspaceStyle.chrome)
     }
 
     private var parameters: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             switch model.tool {
             case .cutout:
-                Picker("去背景方式", selection: $model.options.cutout) {
-                    ForEach([ImageCutoutMode.foreground, .person, .whiteBackground]) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).frame(maxWidth: 440)
+                HStack(spacing: 10) {
+                    Text("去背景方式").foregroundStyle(.secondary)
+                    Picker("去背景方式", selection: $model.options.cutout) {
+                        ForEach([ImageCutoutMode.foreground, .person, .whiteBackground]) { Text($0.rawValue).tag($0) }
+                    }.labelsHidden().pickerStyle(.segmented).tint(WorkspaceStyle.accent).frame(width: 310)
+                    Image(systemName: "info.circle").foregroundStyle(.secondary)
+                        .help("输出透明 PNG，保留原尺寸；无可用主体时显示失败原因")
+                }
                 if model.options.cutout == .whiteBackground {
                     HStack(spacing: 12) {
                         Text("白色容差")
@@ -138,27 +143,21 @@ struct ImageToolView: View {
                         Text("\(Int((model.options.whiteTolerance * 100).rounded()))%")
                             .monospacedDigit().frame(width: 36, alignment: .trailing)
                     }
-                    Text("适合白底文字、图标；容差越大，去除的浅色越多，主体中的白色也会被去除。")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("照片使用自动去背景或人像抠图；白底文字、图标可选择「去白底」。")
-                        .foregroundStyle(.secondary)
-                    Text("输出透明 PNG，保留原尺寸；无可用主体时显示失败原因。")
-                        .foregroundStyle(.secondary)
+                    Text("容差增大也可能去除主体中的白色").foregroundStyle(.secondary)
                 }
             case .resize:
-                Picker("缩放方式", selection: $model.options.resize) {
-                    ForEach(ImageResizeMode.allCases) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).frame(maxWidth: 440)
+                HStack(spacing: 10) {
+                    Text("缩放方式").foregroundStyle(.secondary)
+                    Picker("缩放方式", selection: $model.options.resize) {
+                        ForEach(ImageResizeMode.allCases) { Text($0.rawValue).tag($0) }
+                    }.labelsHidden().pickerStyle(.segmented).tint(WorkspaceStyle.accent).frame(width: 310)
+                }
                 resizeParameters
-                Text("保留每张原图的文件格式，仅调整尺寸。").foregroundStyle(.secondary)
             case .format:
                 outputFormatPicker
                 Text(model.options.format == .png
-                     ? "PNG 支持透明，但格式转换会保留原背景，不会自动去底。"
-                     : "JPG 不支持透明度，透明区域将与所选底色合成。")
-                    .foregroundStyle(.secondary)
-                Text("需要透明背景请使用「抠图」；白底文字、图标选择「去白底」。")
+                     ? "格式转换会保留原背景；需要透明背景请使用「抠图」。"
+                     : "JPG 不支持透明度；透明区域将与所选底色合成。")
                     .foregroundStyle(.secondary)
             case .compress:
                 outputFormatPicker
@@ -170,22 +169,18 @@ struct ImageToolView: View {
                         .monospacedDigit().frame(width: 36, alignment: .trailing)
                 }.disabled(model.options.format != .jpeg)
                 Text(model.options.format == .jpeg
-                     ? "降低质量通常会减小体积，同时损失图片细节。"
-                     : "PNG 原图不抠图且尺寸、方向不变时保留原始数据，不保证更小。")
-                    .foregroundStyle(.secondary)
-                Text(model.options.format == .jpeg
-                     ? "以处理结果的实际体积为准。"
-                     : "可在上方选择 JPG，再调整质量和透明区域底色。")
+                     ? "降低质量通常会减小体积，同时损失细节；以结果实际体积为准。"
+                     : "PNG 可能保留原始数据，不保证体积更小。")
                     .foregroundStyle(.secondary)
             case .edit:
                 editParameters
             case .info:
-                Text("按文件实际内容显示格式、尺寸、色彩和像素透明度；选择列表中的图片查看详情。")
+                Text("选择图片查看实际格式、尺寸、色彩与像素透明度")
                     .foregroundStyle(.secondary)
             }
         }
         .font(.system(size: 12)).controlSize(.small)
-        .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12).padding(.vertical, 8)
     }
 
@@ -200,7 +195,8 @@ struct ImageToolView: View {
                     ForEach(ImageCropRatio.allCases) { ratio in Text(ratio.rawValue).tag(ratio) }
                 }.frame(width: 155)
                 .onChange(of: cropRatio) { _, ratio in applyCropRatio(ratio) }
-                Text("坐标从归一化图片左上角开始，单位 px").foregroundStyle(.secondary)
+                Image(systemName: "info.circle").foregroundStyle(.secondary)
+                    .help("坐标从归一化图片左上角开始，单位 px")
             }
             if model.editOptions.crop != nil {
                 HStack(spacing: 7) {
@@ -222,7 +218,7 @@ struct ImageToolView: View {
                 Text("当前顺时针 \(((model.editOptions.quarterTurns % 4) + 4) % 4 * 90)°")
                     .foregroundStyle(.secondary)
             }
-            Text("先裁剪、再旋转、最后翻转；预览确认后导出。编辑输出保留 PNG/JPG 格式，重新编码为 8 位 sRGB。")
+            Text("先裁剪、再旋转、最后翻转；输出原格式。")
                 .foregroundStyle(.secondary)
         }
     }
@@ -249,8 +245,7 @@ struct ImageToolView: View {
     @ViewBuilder private var resizeParameters: some View {
         switch model.options.resize {
         case .original:
-            Text("保持原始像素尺寸，自动校正图片方向。")
-                .foregroundStyle(.secondary)
+            EmptyView()
         case .percentage:
             HStack(spacing: 8) {
                 Text("比例")
@@ -258,7 +253,6 @@ struct ImageToolView: View {
                     .frame(width: 76).textFieldStyle(.roundedBorder)
                     .accessibilityLabel("缩放百分比")
                 Text("%")
-                Text("例如 50% 为原宽高的一半").foregroundStyle(.secondary)
             }
         case .dimensions:
             HStack(spacing: 8) {
@@ -272,15 +266,13 @@ struct ImageToolView: View {
                 Toggle("保持比例", isOn: $model.options.preserveAspect)
                     .toggleStyle(.checkbox)
             }.textFieldStyle(.roundedBorder)
-            Text(model.options.preserveAspect ? "按比例适配宽高边界，不裁剪。" : "按指定宽高拉伸，图片比例可能改变。")
-                .foregroundStyle(.secondary)
         }
     }
 
     private var queue: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(model.tool.rawValue + "图片").fontWeight(.medium)
+                Text("图片列表").fontWeight(.semibold)
                 Spacer()
                 Text("\(model.items.count)").foregroundStyle(.secondary)
             }
@@ -331,7 +323,7 @@ struct ImageToolView: View {
         HStack(spacing: 12) {
             Picker("输出格式", selection: $model.options.format) {
                 ForEach(ImageOutputFormat.allCases) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.segmented).frame(width: 180)
+            }.pickerStyle(.segmented).tint(WorkspaceStyle.accent).frame(width: 180)
             if model.options.format == .jpeg {
                 ColorPicker("透明区域底色", selection: backgroundColor, supportsOpacity: false)
                     .fixedSize()

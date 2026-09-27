@@ -21,11 +21,14 @@ struct CopyButton: View {
             feedback = ClipboardService.copy(text) ? "已复制" : "复制失败"
             request += 1
         } label: {
-            Label(feedback ?? "复制", systemImage: feedback == "已复制" ? "checkmark" : "doc.on.doc")
+            Image(systemName: feedback == "已复制" ? "checkmark" : "doc.on.doc")
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
         }
-        .frame(width: 58)
+        .buttonStyle(WorkspaceIconButtonStyle())
         .disabled(text.isEmpty)
-        .help("复制该编辑区的文本")
+        .help(feedback ?? "复制")
+        .accessibilityLabel(feedback ?? "复制")
         .task(id: request) {
             guard request > 0 else { return }
             do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { return }
@@ -47,8 +50,8 @@ struct EditorPane: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
-                Text(title).fontWeight(.medium).lineLimit(1)
-                if !editable { Text("只读").foregroundStyle(.secondary) }
+                Text(title).fontWeight(.semibold).lineLimit(1)
+                if !editable { Image(systemName: "lock").foregroundStyle(.tertiary).help("只读") }
                 if error != nil {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
                         .help(error?.localizedDescription ?? "")
@@ -56,7 +59,11 @@ struct EditorPane: View {
                 Spacer(minLength: 4)
                 CopyButton(text: text)
                 if editable {
-                    Button("清空") { text = "" }
+                    Button { text = "" } label: {
+                        Image(systemName: "trash").frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                        .buttonStyle(WorkspaceIconButtonStyle())
                         .disabled(text.isEmpty)
                         .accessibilityLabel("清空" + title)
                         .help("仅清空" + title)
@@ -64,7 +71,7 @@ struct EditorPane: View {
             }
             .font(.system(size: 12))
             .controlSize(.small)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 12)
             .frame(height: WorkspaceStyle.paneHeaderHeight)
             .background(WorkspaceStyle.chrome)
             Divider()

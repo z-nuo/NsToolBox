@@ -13,7 +13,7 @@ struct JSONToolView: View {
             WorkspaceToolbar {
                 Picker("模式", selection: $model.mode) {
                     ForEach(JSONMode.allCases) { Text($0.rawValue).tag($0) }
-                }.pickerStyle(.segmented).frame(width: 280)
+                }.pickerStyle(.segmented).tint(WorkspaceStyle.accent).frame(width: 280)
                 Spacer()
                 if model.mode == .compare {
                     Button("格式化两侧", action: model.formatBoth)

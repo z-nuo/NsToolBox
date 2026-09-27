@@ -75,11 +75,12 @@ private struct ImagePreviewPane: View {
             Divider()
             GeometryReader { geometry in
                 ZStack {
-                    Checkerboard().accessibilityHidden(true)
                     if let image = decodedPreview {
+                        Checkerboard().accessibilityHidden(true)
                         Image(decorative: image, scale: 1).renderingMode(.original).resizable().scaledToFit()
                             .padding(12).accessibilityLabel("\(title)缩略图")
                     } else {
+                        WorkspaceStyle.background
                         VStack(spacing: 8) {
                             Image(systemName: "photo").font(.system(size: 24))
                             Text(placeholder).font(.system(size: 12)).multilineTextAlignment(.center)

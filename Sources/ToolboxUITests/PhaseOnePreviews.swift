@@ -7,9 +7,20 @@ extension StateTests {
     static func renderPhaseOnePreviews() async throws {
         let time = TimestampToolModel()
         time.timeZoneID = "Asia/Shanghai"
-        time.epochInput = "0"
-        time.dateInput = "2026-09-26 12:30:00"
+        time.unit = .milliseconds
+        time.isClockPaused = true
+        time.epochInput = "1790397000123"
+        time.dateInput = "2026-09-26T12:30:00.123+08:00"
         try await render(TimestampToolView(model: time), name: "timestamp-tool", size: NSSize(width: 780, height: 600))
+        time.mode = .batch
+        time.batchInput = "0\n1790397000123\ninvalid\n-1"
+        time.convertBatch()
+        try await waitUntil { !time.isProcessing }
+        try await render(TimestampToolView(model: time), name: "timestamp-batch", size: NSSize(width: 780, height: 600), dark: true)
+        time.mode = .difference
+        time.startInput = "2026-09-26T12:30:00.123+08:00"
+        time.endInput = "2026-09-27T13:31:02.456+08:00"
+        try await render(TimestampToolView(model: time), name: "timestamp-difference", size: NSSize(width: 780, height: 600))
         let uuid = UUIDToolModel()
         uuid.countInput = "5"
         uuid.generate()

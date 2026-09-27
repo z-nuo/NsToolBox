@@ -26,7 +26,7 @@ struct CodeEditor: NSViewRepresentable {
     }
 
     func makeScrollView(coordinator: Coordinator) -> NSScrollView {
-        let scrollView = NSScrollView()
+        let scrollView = EditorScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
@@ -293,6 +293,24 @@ final class EditorLineNumberRuler: NSRulerView {
             let size = label.size(withAttributes: attributes)
             label.draw(at: NSPoint(x: ruleThickness - size.width - 8,
                                    y: line.minY + (line.height - size.height) / 2), withAttributes: attributes)
+        }
+    }
+}
+
+/// Some hosting layouts overlay the clip view with the ruler. Reserve the gutter
+/// after AppKit tiles, without changing the document's scroll position.
+final class EditorScrollView: NSScrollView {
+    override func tile() {
+        super.tile()
+        guard rulersVisible, hasVerticalRuler, let ruler = verticalRulerView else { return }
+        let edge = ruler.frame.maxX
+        var frame = contentView.frame
+        guard frame.minX < edge else { return }
+        frame.size.width = max(0, frame.maxX - edge)
+        frame.origin.x = edge
+        contentView.frame = frame
+        if contentView.bounds.minX < 0 {
+            contentView.scroll(to: NSPoint(x: 0, y: contentView.bounds.minY))
         }
     }
 }

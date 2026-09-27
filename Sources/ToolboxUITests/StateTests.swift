@@ -27,6 +27,19 @@ struct StateTests {
 
     @MainActor
     static func runTests() async throws {
+        if CommandLine.arguments.contains("--navigation-only") {
+            try await render(ToolboxRootView(), name: "app-shell")
+            return
+        }
+        if CommandLine.arguments.contains("--timestamp-only") {
+            try await testPhaseOneUtilityState()
+            if CommandLine.arguments.contains("--render") {
+                try await renderPhaseOnePreviews()
+                try await testTimestampNative()
+            }
+            print("Timestamp: state and requested native checks passed")
+            return
+        }
         if CommandLine.arguments.contains("--image-isolation-only") {
             try await testImageOperationIsolation()
             return
@@ -71,6 +84,7 @@ struct StateTests {
         try await testPhaseOneUtilityState()
         try testRenameState()
         try await testImageEditingSessions()
+        if CommandLine.arguments.contains("--render") { try await testTimestampNative() }
         try await renderPreviews()
         print("ToolboxUITests: state, debounce, errors, line numbers, styling and undo passed" + (CommandLine.arguments.contains("--render") ? "; native workflows passed" : ""))
     }
@@ -146,6 +160,15 @@ struct StateTests {
         view.layoutSubtreeIfNeeded()
         for child in descendants(view, of: NSScrollView.self) { child.layoutSubtreeIfNeeded(); child.documentView?.displayIfNeeded() }
         window.displayIfNeeded()
+        if name == "timestamp-batch" {
+            for output in descendants(view, of: NSTextView.self) where ["批量结果", "批量输入"].contains(output.accessibilityLabel() ?? "") {
+                let scroll = output.enclosingScrollView!
+                let firstX = output.convert(output.textContainerOrigin, to: scroll).x
+                let gutterEnd = scroll.verticalRulerView!.frame.maxX
+                precondition((0...10).contains(firstX - gutterEnd), "Batch text must begin just beyond gutter, without clipping or duplicate inset")
+                precondition(output.visibleRect.minX <= output.textContainerOrigin.x, "First batch result characters must be visible")
+            }
+        }
         if CommandLine.arguments.contains("--capture") {
             let destination = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/previews")
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
@@ -164,15 +187,18 @@ struct StateTests {
                 descendants(view, of: NSTextView.self).first { $0.accessibilityLabel() == label }
             }
             func selectTool(_ label: String) {
+                view.layoutSubtreeIfNeeded()
                 let index = ToolRoute.allCases.firstIndex { $0.rawValue == label }!
-                let content = navigation.subviews[1]
+                let content = descendants(view, of: NSSplitView.self).first!.subviews[1]
                 let point = content.convert(NSPoint(x: CGFloat(index) * 104 + 52,
                     y: content.isFlipped ? 17 : content.bounds.height - 17), to: nil)
                 click(point, in: window)
             }
             precondition(editor("JSON 输入") == nil, "A new window must open the image workspace")
-            let category = navigation.subviews[0]
             func selectGroup(atTop y: CGFloat) {
+                view.layoutSubtreeIfNeeded()
+                let category = descendants(view, of: NSSplitView.self).first!.subviews[0]
+                precondition(category.window === window, "Category click must target the current hosted view")
                 click(category.convert(NSPoint(x: 64, y: category.isFlipped ? y : category.bounds.height - y), to: nil), in: window)
             }
             selectGroup(atTop: 52)

@@ -56,30 +56,37 @@ public struct ToolboxRootView: View {
     public var body: some View {
         HSplitView {
             VStack(alignment: .leading, spacing: 4) {
-                Text("工具集")
-                    .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 12).frame(height: WorkspaceStyle.tabHeight)
+                HStack(spacing: 7) {
+                    Image(systemName: "square.grid.2x2.fill")
+                        .foregroundStyle(WorkspaceStyle.accent)
+                    Text("工具集")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .padding(.horizontal, 12).frame(height: WorkspaceStyle.tabHeight)
                 ForEach(ToolGroup.allCases) { group in
                     Button {
                         appModel.selectedGroup = group
                     } label: {
-                        Label(group.rawValue, systemImage: group.symbol)
-                            .font(.system(size: 12, weight: .medium))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 8).frame(height: 28)
-                            .contentShape(Rectangle())
-                            .background(appModel.selectedGroup == group ? Color.accentColor.opacity(0.14) : Color.clear,
-                                        in: RoundedRectangle(cornerRadius: 4))
+                        HStack(spacing: 9) {
+                            Image(systemName: group.symbol).frame(width: 17)
+                                .foregroundStyle(appModel.selectedGroup == group ? WorkspaceStyle.accent : .secondary)
+                            Text(group.rawValue).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .font(.system(size: 12, weight: appModel.selectedGroup == group ? .semibold : .regular))
+                        .padding(.horizontal, 9).frame(maxWidth: .infinity).frame(height: 28)
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(WorkspaceNavigationButtonStyle(isSelected: appModel.selectedGroup == group))
                     .padding(.horizontal, 6)
                     .accessibilityIdentifier("group-" + group.id)
                     .accessibilityAddTraits(appModel.selectedGroup == group ? [.isSelected] : [])
                 }
                 Spacer(minLength: 0)
             }
-            .frame(minWidth: 120, idealWidth: 144, maxWidth: 200, maxHeight: .infinity)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .frame(minWidth: 132, idealWidth: 148, maxWidth: 176, maxHeight: .infinity)
+            .background(WorkspaceStyle.sidebar)
             Group {
                 switch appModel.selectedGroup {
                 case .developer: developerWorkspace
@@ -103,14 +110,14 @@ public struct ToolboxRootView: View {
 
     private func singleToolHeader(_ title: String, symbol: String) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
+            HStack(spacing: 8) {
                 Label(title, systemImage: symbol)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 130, height: WorkspaceStyle.tabHeight)
-                    .background(WorkspaceStyle.background)
-                    .overlay(alignment: .bottom) { Color.accentColor.frame(height: 2) }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
                 Spacer(minLength: 0)
             }
+            .padding(.horizontal, 12)
+            .frame(height: WorkspaceStyle.tabHeight)
             .background(WorkspaceStyle.chrome)
             Divider()
         }
@@ -126,14 +133,11 @@ public struct ToolboxRootView: View {
                         } label: {
                             Label(route.rawValue, systemImage: route.systemImage)
                                 .font(.system(size: 12, weight: appModel.selectedTool == route ? .medium : .regular))
-                                .frame(width: 104, height: WorkspaceStyle.tabHeight)
+                                .frame(width: 100, height: 28)
                                 .contentShape(Rectangle())
-                                .background(appModel.selectedTool == route ? WorkspaceStyle.background : Color.clear)
-                                .overlay(alignment: .bottom) {
-                                    if appModel.selectedTool == route { Color.accentColor.frame(height: 2) }
-                                }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(WorkspaceNavigationButtonStyle(isSelected: appModel.selectedTool == route))
+                        .frame(width: 104, height: WorkspaceStyle.tabHeight)
                         .accessibilityLabel(route.rawValue)
                         .accessibilityIdentifier("tool-tab-\(route.id)")
                         .accessibilityAddTraits(appModel.selectedTool == route ? [.isSelected] : [])

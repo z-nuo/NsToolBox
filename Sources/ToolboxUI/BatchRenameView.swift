@@ -94,6 +94,7 @@ struct BatchRenameView: View {
                 Button("清空列表", action: model.clear).disabled(model.urls.isEmpty)
                 Spacer(minLength: 8)
                 Button("执行重命名", systemImage: "play.fill", action: model.execute)
+                    .buttonStyle(.borderedProminent).tint(WorkspaceStyle.accent)
                     .disabled(!model.canExecute)
                 Button("撤销本会话改名", systemImage: "arrow.uturn.backward", action: model.undoLast)
                     .disabled(!model.canUndo)

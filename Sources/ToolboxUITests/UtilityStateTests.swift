@@ -1,4 +1,5 @@
 import Foundation
+import ToolboxCore
 @testable import ToolboxUI
 
 extension StateTests {
@@ -13,6 +14,45 @@ extension StateTests {
         timestamp.epochInput = "0"
         timestamp.timeZoneID = "No/Such_Zone"
         precondition(timestamp.dateOutput.isEmpty && timestamp.isError, "Invalid zone must clear old output")
+
+        timestamp.timeZoneID = "UTC"
+        timestamp.dateInput = "1970-01-01 00:00:01"
+        timestamp.epochInput = "bad"
+        precondition(timestamp.epochOutput == "1", "Invalid epoch must not erase valid reverse conversion")
+
+        timestamp.unit = .milliseconds
+        timestamp.epochInput = "-1"
+        timestamp.format = .iso8601
+        precondition(timestamp.dateOutput == "1969-12-31T23:59:59.999Z")
+        timestamp.isClockPaused = true
+        timestamp.now = Date(timeIntervalSince1970: 1.125)
+        timestamp.fillCurrent()
+        precondition(timestamp.epochInput == "1125" && timestamp.dateInput == "1970-01-01T00:00:01.125Z")
+        timestamp.mode = .batch
+        timestamp.batchInput = "0\nbad\n-1"
+        timestamp.convertBatch()
+        try await waitUntil { !timestamp.isProcessing }
+        precondition(timestamp.batchOutput.hasPrefix("1970-01-01T00:00:00.000Z") && timestamp.isError)
+        timestamp.batchInput = "1"
+        precondition(timestamp.batchOutput.isEmpty && !timestamp.isError, "Edits invalidate previous batch output")
+        timestamp.batchInput = Array(repeating: "0", count: 1000).joined(separator: "\n")
+        timestamp.convertBatch()
+        timestamp.timeZoneID = "Asia/Shanghai"
+        try await waitUntil { !timestamp.isProcessing }
+        precondition(timestamp.batchOutput.isEmpty, "Stale background batch must not overwrite changed settings")
+        timestamp.batchInput = "1970-01-01T00:00:01.125Z"
+        timestamp.direction = .toTimestamp
+        timestamp.convertBatch()
+        try await waitUntil { !timestamp.isProcessing }
+        precondition(timestamp.batchOutput == "1125")
+        timestamp.mode = .difference
+        timestamp.startInput = "1970-01-01T00:00:01.125Z"
+        timestamp.endInput = "1970-01-01T00:00:01.001Z"
+        precondition(timestamp.differenceOutput.contains("总毫秒：-124") && timestamp.differenceOutput.contains("总秒数：-0.124"))
+        timestamp.endInput = "invalid"
+        precondition(timestamp.differenceOutput.isEmpty && timestamp.isError)
+        timestamp.mode = .convert
+        precondition(timestamp.epochInput == "1125" && !timestamp.dateOutput.isEmpty, "Modes preserve independent inputs")
 
         let uuid = UUIDToolModel()
         uuid.countInput = "3"
