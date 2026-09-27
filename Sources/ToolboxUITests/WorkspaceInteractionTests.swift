@@ -56,9 +56,13 @@ extension StateTests {
         left.undoManager?.undo()
         try await waitUntil { model.leftText == #"{"left":1}"# }
         try await waitUntil { !model.isProcessing && !model.isError }
+        // Model completion precedes SwiftUI committing the button's enabled state.
+        // Let that render pass finish before sending the actual click.
+        try await Task.sleep(for: .milliseconds(100))
+        view.layoutSubtreeIfNeeded()
         left.undoManager?.removeAllActions()
         right.undoManager?.removeAllActions()
-        click(pointFromTop(NSPoint(x: view.bounds.width - 50, y: 16)), in: window)
+        click(pointFromTop(NSPoint(x: view.bounds.width - 50, y: WorkspaceStyle.toolbarHeight / 2)), in: window)
         try await waitUntil { left.string.contains("\n") && right.string.contains("\n") }
         window.makeFirstResponder(left)
         left.undoManager?.undo()

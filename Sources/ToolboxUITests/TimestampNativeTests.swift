@@ -40,22 +40,31 @@ extension StateTests {
         type("1970-01-01T08:00:00.123+08:00", into: field("yyyy-MM-dd HH:mm:ss[.SSS]"))
         try await waitUntil { model.epochOutput == "123" }
         // Segmented modes occupy the second toolbar row, preserving the native click path.
-        func clickAtTop(x: CGFloat, y: CGFloat) {
+        func clickAtTop(x: CGFloat, y: CGFloat, tracksMouse: Bool = false) {
+            host.layoutSubtreeIfNeeded()
             let point = host.convert(NSPoint(x: x, y: host.isFlipped ? y : host.bounds.height - y), to: nil)
+            guard tracksMouse else {
+                click(point, in: window)
+                return
+            }
             func event(_ type: NSEvent.EventType) -> NSEvent {
                 NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
                     timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
                     context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)!
             }
-            // AppKit segmented controls enter a tracking loop during mouseDown.
-            NSApp.postEvent(event(.leftMouseDown), atStart: false)
-            NSApp.postEvent(event(.leftMouseUp), atStart: false)
+            // Deliver the press to this window directly, with its release already
+            // queued so AppKit's synchronous tracking loop cannot wait forever.
+            NSApp.postEvent(event(.leftMouseUp), atStart: true)
+            window.sendEvent(event(.leftMouseDown))
         }
         func selectMode(_ index: Int) {
+            host.layoutSubtreeIfNeeded()
             let control = descendants(host, of: NSSegmentedControl.self).first { $0.segmentCount == 3 }!
+            precondition(control.window === window && control.isEnabled)
             let rect = control.convert(control.bounds, to: host)
             clickAtTop(x: rect.minX + rect.width * (CGFloat(index) + 0.5) / 3,
-                       y: host.isFlipped ? rect.midY : host.bounds.height - rect.midY)
+                       y: host.isFlipped ? rect.midY : host.bounds.height - rect.midY,
+                       tracksMouse: true)
         }
         window.makeFirstResponder(nil)
         try await Task.sleep(for: .milliseconds(150))
@@ -67,7 +76,7 @@ extension StateTests {
         input.insertText("0\nbad\n-1", replacementRange: NSRange(location: 0, length: 0))
         try await waitUntil { model.batchInput == "0\nbad\n-1" }
         // The conversion button is the trailing control in the timezone row.
-        clickAtTop(x: 750, y: 81)
+        clickAtTop(x: host.bounds.width - 30, y: WorkspaceStyle.toolbarHeight * 2.5)
         try await waitUntil { model.batchOutput.contains("1969-12-31 23:59:59.999") }
         precondition(model.batchHasError)
         try await Task.sleep(for: .milliseconds(150))
